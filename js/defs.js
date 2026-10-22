@@ -285,7 +285,7 @@ async function msToken(interactive,scopes){
   if(!msalApp){msalApp=new msal.PublicClientApplication({auth:{clientId:c.clientId,authority:'https://login.microsoftonline.com/'+(c.tenantId||'organizations'),redirectUri:new URL('redirect.html',location.href).href},cache:{cacheLocation:'localStorage'}});await msalApp.initialize()}
   const req={scopes:scopes||['Files.Read.All'],account:msalApp.getAllAccounts()[0]};
   try{if(!req.account)throw 0;return (await msalApp.acquireTokenSilent(req)).accessToken}
-  catch(e){if(!interactive)throw new Error('sessão Microsoft não iniciada');return (await msalApp.acquireTokenPopup({scopes:req.scopes})).accessToken}
+  catch(e){if(!interactive)throw new Error('sessão Microsoft não iniciada');const all=[...new Set([...req.scopes,'Files.Read.All','Mail.Read','Mail.Read.Shared'])];await msalApp.acquireTokenPopup({scopes:all});return (await msalApp.acquireTokenSilent({scopes:req.scopes,account:msalApp.getAllAccounts()[0]})).accessToken}
 }
 async function graphList(tok,folderUrl){
   const url=decodeURI(folderUrl.replace(/\/$/,''));const id='u!'+btoa(unescape(encodeURIComponent(url))).replace(/=+$/,'').replace(/\//g,'_').replace(/\+/g,'-');
