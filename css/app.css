@@ -293,3 +293,10 @@ body:not(.role-OP) [data-only="OP"]{display:none!important}
 .ro .w-only{display:none!important}
 @media (max-width:1100px){.mods{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:860px){.armhead,.three{grid-template-columns:1fr}.mods{grid-template-columns:1fr}.hero{grid-template-columns:1fr}.hero .img{min-height:160px}.two{grid-template-columns:1fr}.kv{grid-template-columns:110px 1fr}nav.main{margin-left:0;width:100%}.bar{grid-template-columns:110px 1fr 56px}}
+/* checklist obrigatória em janela (v24) */
+.ckmodal{position:fixed;inset:0;z-index:80;background:rgba(10,20,14,.5);display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:calc(20px + env(safe-area-inset-top,0px)) 12px calc(20px + env(safe-area-inset-bottom,0px))}.ckmodal[hidden]{display:none}
+.ckbox{background:var(--bg);border-radius:16px;width:min(880px,100%);padding:18px;box-shadow:0 12px 48px rgba(0,0,0,.25)}
+.ckhead{display:flex;gap:12px;align-items:flex-start;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--line)}.ckhead h3{margin:0;font-size:19px}.ckhead p{margin:4px 0 0}
+body.ck-open{overflow:hidden}
+.xom{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line)}.xom>span{flex:1;display:flex;flex-direction:column;min-width:0}.xom small{color:var(--muted,#6b7a71);font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#xOnMaq{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}

@@ -41,7 +41,7 @@ function renderFlow(){
   <section class="fzone fzM" data-drop="M"><header><span class="fdot">${nM}</span><div><h3>Máquinas</h3><p>Larga o cortante na máquina que vai abastecer</p></div></header>
     <div class="fmaqs">${Object.entries(z.M).map(([m,ts])=>`<div class="fmaq" data-drop="M" data-maq="${esc(m)}"><div class="row"><b>${esc(m)}</b><span class="grow"></span><span class="pill p-maquina">${ts.length}</span></div>${ts.map(t=>toolCard(t,'M')).join('')||'<p class="fempty">vazia</p>'}</div>`).join('')}</div></section>`;
   const fq=$('#flowQ');fq.oninput=()=>{UI.flowQ=fq.value;const p=fq.selectionStart;renderFlow();const n=$('#flowQ');n.focus();n.setSelectionRange(p,p)};
-  $('#flowHint').innerHTML=UI.flowSel?`<b class="mono">${esc(UI.flowSel.label)}</b> selecionado · clica na zona de destino ou <button class="btn sm" id="flowCancel">Cancelar</button>`:(can?'Arrasta um cortante para outra zona (ou clica nele e depois na zona de destino).':'Nível OP: podes registar a saída da máquina arrastando o cortante da máquina para o Pré-corte e vinco.');
+  $('#flowHint').innerHTML=UI.flowSel?`<b class="mono">${esc(UI.flowSel.label)}</b> selecionado · clica na zona de destino ou <button class="btn sm" id="flowCancel">Cancelar</button>`:(can?'Arrasta um cortante para outra zona (ou clica nele e depois na zona de destino).':'Nível OP: arrasta o cortante da máquina para o Pré-corte e vinco para fazer a checklist de saída.');
   $('#flowCancel')&&($('#flowCancel').onclick=()=>{UI.flowSel=null;renderFlow()});
   document.body.classList.toggle('flow-picking',!!UI.flowSel);
 }
@@ -58,7 +58,7 @@ $('#flowMap').addEventListener('drop',e=>{const d=e.target.closest('[data-drop]'
 $('#flowMap').addEventListener('click',e=>{
   const c=e.target.closest('.fcard');
   if(c&&!UI.flowSel){UI.flowSel=selOf(c);renderFlow();return}
-  if(c&&UI.flowSel&&(c.dataset.ft===UI.flowSel.id||c.dataset.fl===UI.flowSel.k)){UI.flowSel=null;renderFlow();return}
+  if(c&&UI.flowSel&&((c.dataset.ft&&c.dataset.ft===UI.flowSel.id)||(c.dataset.fl&&c.dataset.fl===UI.flowSel.k))){UI.flowSel=null;renderFlow();return}
   const d=e.target.closest('[data-drop]');if(d&&UI.flowSel&&!e.target.closest('input,details>summary')){const s=UI.flowSel;UI.flowSel=null;renderFlow();flowMove(s,d.dataset.drop,d.dataset.maq||'')}
 });
 $('#flowMap').addEventListener('dblclick',e=>{const c=e.target.closest('[data-ft]');if(c){UI.flowSel=null;openTool(c.dataset.ft)}});
@@ -81,23 +81,20 @@ function flowMove(s,to,maq){
   if(!roleAtLeast('PCV')&&!(s.kind==='tool'&&s.from==='M'&&to==='P')){toast('No nível OP só podes registar a saída da máquina (Máquina → Pré-corte e vinco).',1);renderFlow();return}
   if(s.kind==='line')return flowMoveLine(s,to,maq);
   const t=S.tools.get(s.id);if(!t)return;const c=`<b class="mono">${esc(t.cod)}</b>`;
-  const toMaq=m=>flowAsk(`${esc(t.cod)} → máquina`,`<p>Abastecer a máquina com o cortante ${c}. A posição <b class="mono">${esc(t.pos||'—')}</b> fica reservada.</p>${maqSelect(m||t.maq)}`,[
-    {label:'Fazer controlo de qualidade PCV',pri:true,fn:mm=>{const m2=$('#fmMaq',mm).value;flowGoQual(t,m2)}},
-    {label:'Só registar a ida para a máquina',fn:mm=>{const m2=$('#fmMaq',mm).value;return setTool(t,{est:'maquina',maq:m2,maqDesde:nowIso(),arrDesde:'',arrRes:''},`Enviado para a máquina ${m2} (sem controlo PCV registado)`)}}]);
+  const toMaq=m=>ckOpen('q',t,m||'');
   const toRep=()=>flowAsk(`${esc(t.cod)} → ${esc(FORN_REP())}`,`<p>Enviar ${c} para reparação no fornecedor <b>${esc(FORN_REP())}</b>. A posição fica reservada.</p><label class="f"><span>Motivo *</span><input type="text" id="fmMot" placeholder="ex.: lâmina partida, borrachas gastas"></label>`,[
     {label:'Enviar para reparação',pri:true,fn:mm=>{const mot=$('#fmMot',mm).value.trim();if(!mot){toast('Indica o motivo.',1);return false}return setTool(t,{est:'reparacao',repDesde:today(),repMot:mot,repOrig:'Fluxo · '+zoneName(s.from),repForn:FORN_REP(),maq:'',maqDesde:''},`Enviado para reparação na ${FORN_REP()}: ${mot}`)}}]);
   const toArm=()=>{if(!t.pos){openTool(t.id);$('#dMove')&&$('#dMove').click();return}
     return flowAsk(`${esc(t.cod)} → armazém`,`<p>Arrumar ${c} na sua posição fixa <b class="mono" style="font-size:20px">${esc(t.pos)}</b>${t.local?' · '+esc(t.local):''}.</p>${s.from==='M'?'<p class="small" style="color:var(--warn)">Normalmente o cortante passa primeiro pelo Pré-corte e vinco (controlo de saída).</p>':''}`,[
     {label:`Arrumar em ${esc(t.pos)}`,pri:true,fn:()=>setTool(t,{est:'armazem',maq:'',maqDesde:'',arrDesde:'',arrRes:''},`Arrumado na posição ${t.pos}`+(s.from==='F'?` (regressou da ${FORN_REP()})`:''))}])};
   const toPcv=()=>{
-    if(s.from==='M')return flowAsk(`${esc(t.cod)} saiu da máquina ${esc(t.maq||'')}`,`<p>O cortante ${c} sai da máquina e fica no Pré-corte e vinco à espera de ser arrumado.</p>`,[
-      {label:'Fazer controlo de saída (operador)',pri:true,fn:()=>flowGoExit(t)},
-      ...(roleAtLeast('PCV')?[{label:'Só mover (sem controlo)',fn:()=>setTool(t,{est:'arrumar',arrDesde:nowIso(),arrRes:'',maqUlt:t.maq||'',maq:'',maqDesde:''},`Saiu da máquina ${t.maq||''} para o PCV (sem controlo de saída)`)}]:[])]);
+    if(s.from==='M')return ckOpen('x',t);
     if(s.from==='F')return flowAsk(`${esc(t.cod)} regressou da ${esc(FORN_REP())}`,`<p>O cortante ${c} voltou da reparação e fica no Pré-corte e vinco para ser verificado e arrumado.</p>`,[
       {label:'Confirmar regresso',pri:true,fn:()=>setTool(t,{est:'arrumar',arrDesde:nowIso(),arrRes:'',repDesde:'',repMot:'',repOrig:''},`Regressou da reparação (${FORN_REP()}) · no PCV`)}]);
     return flowAsk(`${esc(t.cod)} → Pré-corte e vinco`,`<p>Retirar ${c} da posição <b class="mono">${esc(t.pos||'—')}</b> para o Pré-corte e vinco (a posição fica reservada).</p>`,[
       {label:'Retirar para o PCV',pri:true,fn:()=>setTool(t,{est:'arrumar',arrDesde:nowIso(),arrRes:''},'Retirado do armazém para o PCV')}]);
   };
+  if(s.from==='M'&&to!=='M'){if(to!=='P')toast(to==='F'?'Primeiro a checklist de saída: marca NOK os pontos com problema para o enviar para reparação.':'Primeiro a checklist de saída; depois o cortante é arrumado a partir do Pré-corte e vinco.');return ckOpen('x',t)}
   if(to==='M')return toMaq(maq);if(to==='F')return toRep();if(to==='A')return toArm();if(to==='P')return toPcv();
 }
 function flowMoveLine(s,to,maq){
@@ -110,14 +107,14 @@ function flowMoveLine(s,to,maq){
   if(to==='F'){if(s.lk==='ret')return;return flowAsk(`Devolver ao fornecedor`,`<p>${c} volta para o fornecedor (${esc(o.forn||FORN_REP())}). Deixa de contar como por arrumar.</p>`,[{label:'Devolver',pri:true,danger:true,fn:()=>setLoc('famag','Ferramenta devolvida ao fornecedor.')}])}
   if(to==='P'){if(s.lk==='ret')return flowAsk('Voltou do fornecedor',`<p>${c} voltou e fica no Pré-corte e vinco por arrumar.</p>`,[{label:'Confirmar',pri:true,fn:()=>setLoc('','Ferramenta de volta ao PCV.')}]);return}
   if(to==='A')return flowAsk('Dar entrada no armazém',`<p>Registar ${c} como cortante e escolher a posição nas racks.</p>`,[{label:'Escolher posição',pri:true,fn:()=>{arrumar(o,s.i)}}]);
-  if(to==='M')return flowAsk('Entrada direta na máquina',`<p>Registar ${c} como cortante (com a posição que vai ficar reservada nas racks) e enviá-lo já para a máquina.</p>${maqSelect(maq)}`,[{label:'Registar e enviar',pri:true,fn:mm=>{const m2=$('#fmMaq',mm).value;arrumarMaq(o,s.i,m2)}}]);
+  if(to==='M')return flowAsk('Entrada direta na máquina',`<p>Registar ${c} como cortante (com a posição que vai ficar reservada nas racks). A seguir abre a checklist de entrada; o cortante só passa para a máquina com a checklist OK.</p>${maqSelect(maq)}`,[{label:'Registar e enviar',pri:true,fn:mm=>{const m2=$('#fmMaq',mm).value;arrumarMaq(o,s.i,m2)}}]);
 }
 function arrumarMaq(o,i,maq){const l=o.linhas[i];
   openToolForm(null,{cod:l.cod||'',mat:l.mat||'',den:l.desc||'',ult:today(),notas:'Pedido '+o.num,onSaved:async t=>{const cur=S.orders.find(x=>x._id===o._id)||o;const ls=cur.linhas.map(x=>({...x}));ls[i].ent=today();ls[i].entPos=t.pos||'';await setOrderLines(cur,ls);
-    const n={...S.tools.get(t.id),est:'maquina',maq,maqDesde:nowIso()};addHist(n,'Enviado diretamente para a máquina '+maq);await saveTools([n]);renderPend()}})}
+    renderPend();setTimeout(()=>ckOpen('q',S.tools.get(t.id)||t,maq),300)}})}
 /* atalhos para os controlos de qualidade, já preenchidos */
-function flowGoQual(t,maq){UI.qual='nova';go('qualidade');Q.tool=t;$('#qCod').value=t.cod;renderToolInfo();const s=$('#qMaq');if(s&&maq)s.value=maq;toast('Faz a checklist; ao gravar OK o cortante fica na máquina '+maq+'.')}
-function flowGoExit(t){UI.op='nova';go('operador');X.tool=t;$('#xCod').value=t.cod;if(t.maq&&machines().includes(t.maq))$('#xMaq').value=t.maq;renderExitTool();toast('Faz a checklist de saída e indica as folhas cortadas.')}
+function flowGoQual(t,maq){ckOpen('q',t,maq)}
+function flowGoExit(t){ckOpen('x',t)}
 /* receção NOK: perguntar onde fica a ferramenta (não assumir) */
 function askNcLocation(o,i){
   const cur=()=>S.orders.find(x=>x._id===o._id)||o;const l=cur().linhas[i];const c=`<b class="mono">${esc(l.cod||l.mat||'')}</b>`;
@@ -130,3 +127,46 @@ function askNcLocation(o,i){
 function renderHomeFlow(){const el=$('#homeFlow');if(!el||!S.loaded.tools)return;const {z,lines}=flowData(),nM=Object.values(z.M).reduce((s,a)=>s+a.length,0);
   el.innerHTML=[['A',z.A.length],['P',z.P.length+lines.P.length],['M',nM],['F',z.F.length+lines.Fret.length]].map(([k,n])=>`<div class="fsum z${k}"><b>${n}</b><span>${zoneName(k)}</span></div>`).join('')+'<span class="small muted" style="align-self:center">› ver fluxo</span>'}
 {const _ra=refreshAll;refreshAll=function(){_ra();if(UI.view==='fluxo')renderFlow();if(UI.view==='inicio')renderHomeFlow()}}
+
+/* ============ checklist obrigatória em janela: entrada na máquina (PCV) e saída da máquina (operador) ============
+   Reaproveita os formulários das vistas Qualidade › Nova verificação e Operador › Registo de saída:
+   o painel é levado para dentro da janela e devolvido ao fechar. O cortante só muda de estado ao gravar. */
+const CK={kind:null,pane:null,ph:null};
+function ckOpen(kind,t,maq){
+  if(!t)return;if(!needDb())return;
+  if(kind==='q'&&!roleAtLeast('PCV')){toast('A checklist de entrada na máquina é feita pelo PCV.',1);return}
+  ckClose(true);if(typeof closeDrawer==='function'&&!$('#ov').hidden)closeDrawer();$('#fmodal')&&($('#fmodal').hidden=true);
+  const q=kind==='q',pane=$(q?'#v-qualidade [data-pane="nova"]':'#v-operador [data-pane="nova"]');if(!pane)return;
+  fillMaqSelect();
+  if(q){resetQ();Q.tool=t;$('#qCod').value=t.cod;$('#qData').value=today();const m=maq||'';if(m&&machines().includes(m))$('#qMaq').value=m;else $('#qMaq').value='';renderToolInfo()}
+  else{$('#xReset').click();X.tool=t;$('#xCod').value=t.cod;const m=maq||t.maq||'';if(m&&machines().includes(m))$('#xMaq').value=m;renderExitTool()}
+  let m=$('#ckModal');
+  if(!m){m=document.createElement('div');m.id='ckModal';m.className='ckmodal';m.hidden=true;
+    m.innerHTML='<div class="ckbox" role="dialog" aria-modal="true" aria-labelledby="ckTitle"><div class="ckhead"><div class="grow"><h3 id="ckTitle"></h3><p class="small muted" id="ckSub"></p></div><button class="btn sm" id="ckX">Cancelar</button></div><div id="ckBody"></div></div>';
+    document.body.append(m);$('#ckX').onclick=()=>ckClose()}
+  $('#ckTitle').textContent=q?`Checklist de entrada na máquina · ${t.cod}`:`Checklist de saída da máquina · ${t.cod}`;
+  $('#ckSub').innerHTML=q?`Obrigatória antes de o cortante entrar na máquina. Ao gravar <b>OK</b>, o cortante passa para a máquina e a folha é impressa.`:`Obrigatória quando o cortante sai da máquina${t.maq?' <b>'+esc(t.maq)+'</b>':''}. Indica as folhas cortadas; ao gravar, a folha é impressa e o cortante fica no Pré-corte e vinco.`;
+  CK.ph=document.createComment('ck');pane.before(CK.ph);$('#ckBody').append(pane);pane.hidden=false;CK.kind=kind;CK.pane=pane;
+  $(q?'#qCod':'#xCod').readOnly=true;
+  m.hidden=false;m.scrollTop=0;document.body.classList.add('ck-open');
+  setTimeout(()=>{const f=q?($('#qMaq').value?$('#qOp'):$('#qMaq')):($('#xMaq').value?$('#xFolhas'):$('#xMaq'));(f&&!f.value?f:$('#ckX'))?.focus()},40);
+}
+function ckClose(silent){
+  if(!CK.pane)return;const q=CK.kind==='q';
+  CK.ph.replaceWith(CK.pane);$(q?'#qCod':'#xCod').readOnly=false;CK.pane=null;CK.ph=null;CK.kind=null;
+  $('#ckModal').hidden=true;document.body.classList.remove('ck-open');syncTabs();
+  if(!silent){if(q)resetQ();else{$('#xReset').click();$('#xMaq').value=''}toast('Checklist cancelada: o cortante não foi movido.')}
+  if(UI.view==='fluxo')renderFlow();renderExitOnMaq();
+}
+/* chamada pelos botões Guardar quando a gravação corre bem */
+function ckDone(kind){if(CK.pane&&CK.kind===kind){ckClose(true);if(kind==='q')resetQ()}}
+
+/* Operador: cortantes que estão nas máquinas, com botão para a checklist de saída */
+function renderExitOnMaq(){
+  const el=$('#xOnMaq');if(!el||!S.loaded.tools)return;
+  const by={};for(const t of S.tools.values())if(t.est==='maquina')(by[t.maq||'?']=by[t.maq||'?']||[]).push(t);
+  const ms=[...machines().filter(m=>by[m]),...Object.keys(by).filter(m=>!machines().includes(m))];
+  el.innerHTML=ms.length?ms.map(m=>`<div class="fmaq"><div class="row"><b>${esc(m)}</b><span class="grow"></span><span class="pill p-maquina">${by[m].length}</span></div>${by[m].map(t=>`<div class="xom"><span><b class="mono">${esc(t.cod)}</b><small>${esc((t.cli||t.den||'').slice(0,30))}${t.maqDesde?' · desde '+fmtD(t.maqDesde):''}</small></span><button class="btn pri sm w-only" data-xout="${esc(t.id)}">Saída</button></div>`).join('')}</div>`).join(''):'<p class="fempty">Nenhum cortante nas máquinas.</p>';
+}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-xout]');if(!b)return;ckOpen('x',S.tools.get(b.dataset.xout))});
+{const _ra=refreshAll;refreshAll=function(){_ra();if(UI.view==='operador')renderExitOnMaq()}}

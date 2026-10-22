@@ -60,6 +60,7 @@ $('#xSave').onclick=async()=>{
     if(c.res==='NOK')notifyAlert('saida',`Saída NOK de máquina – cortante ${c.cod}`,`O cortante ${c.cod} foi marcado NOK à saída da máquina ${c.maq} por ${c.op} em ${fmtD(c.data)}${rep?' e enviado para reparação':''}.\n\nPontos NOK:\n`+c.itens.filter(i=>i.r==='NOK').map(i=>'- '+i.g+': '+i.t+(i.c?' ('+i.c+')':'')).join('\n'));
     xLast=doc;toast(c.total>=lim?`Registo guardado. ATENÇÃO: ${c.cod} tem ${fmtN(c.total)} folhas, acima do limite de ${fmtN(lim)}.`:'Registo guardado.',c.total>=lim);
     X.ans={};X.tool=null;['#xCod','#xObs','#xFolhas'].forEach(s=>$(s).value='');renderExitList();renderExitTool();
+    ckDone('x');await inspPdf(doc,true);
   }catch(e){toast(dbErr(e),1)}
 };
 $('#xPdf').onclick=()=>{const c=exitCollect();if(c.cod)return inspPdf({...c,ts:''},true);if(xLast)return inspPdf(xLast,true);toast('Indica o código do cortante.',1)};

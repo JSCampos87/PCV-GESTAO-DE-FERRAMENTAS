@@ -361,8 +361,8 @@ function openTool(id){
     $('#mvPos').oninput=chk;chk();$('#mvNo').onclick=()=>act.innerHTML='';
     $('#mvOk').onclick=()=>{const p=$('#mvPos').value.trim().toUpperCase();if(!p){toast('Indica a nova posição.',1);return}{const arr=t.est==='arrumar';const ch={pos:p,local:$('#mvLoc').value.trim(),est:t.est==='sucatado'||arr?'armazem':(t.est||'armazem')};upd(ch,arr?`Arrumado na posição ${p}`+(p!==t.pos?` (antes ${t.pos||'—'})`:''):`Mudou de ${t.pos||'—'} para ${p}`)}};
   });
-  $('#dMaq')&&($('#dMaq').onclick=()=>{act.innerHTML=`<div class="panel row"><label class="f grow"><span>Máquina</span><input type="text" id="mqN" list="maqList"></label><button class="btn pri" id="mqOk" style="margin-top:18px">Registar saída</button></div>`;$('#mqOk').onclick=()=>upd({est:'maquina',maq:$('#mqN').value.trim()},'Saída para máquina '+($('#mqN').value.trim()||''))});
-  $('#dBack')&&($('#dBack').onclick=()=>upd({est:'armazem',maq:'',repDesde:null,repMot:null,repOrig:null},'Regressou ao armazém ('+(t.pos||'sem posição')+')'));
+  $('#dMaq')&&($('#dMaq').onclick=()=>ckOpen('q',t));
+  $('#dBack')&&($('#dBack').onclick=()=>t.est==='maquina'?ckOpen('x',t):upd({est:'armazem',maq:'',repDesde:null,repMot:null,repOrig:null},'Regressou ao armazém ('+(t.pos||'sem posição')+')'));
   $('#dRep')&&($('#dRep').onclick=()=>{act.innerHTML=`<div class="panel row"><label class="f grow"><span>Motivo</span><input type="text" id="rpM" placeholder="ex.: lâmina partida"></label><button class="btn pri" id="rpOk" style="margin-top:18px">Enviar</button></div>`;$('#rpOk').onclick=()=>upd({est:'reparacao',repDesde:today(),repMot:$('#rpM').value.trim(),repOrig:'Manual'},'Enviado para reparação'+($('#rpM').value.trim()?': '+$('#rpM').value.trim():''))});
   $('#dScrap')&&($('#dScrap').onclick=()=>{if(!roleAtLeast('SUPV'))return;act.innerHTML=`<div class="confirm"><span class="grow">Sucatar <b>${esc(t.cod)}</b> e libertar a posição <b>${esc(t.pos||'—')}</b>?</span><button class="btn danger" id="scOk">Sim, sucatar</button><button class="btn" id="scNo">Cancelar</button></div>`;$('#scNo').onclick=()=>act.innerHTML='';$('#scOk').onclick=()=>upd({est:'sucatado',posAnt:t.pos||'',pos:''},'Sucatado; posição '+(t.pos||'—')+' libertada')});
   $('#dEdit')&&($('#dEdit').onclick=()=>openToolForm(t));
@@ -773,6 +773,7 @@ $('#qSave').onclick=async()=>{
   if(!needDb())return;
   if(!c.maq){toast('Escolhe a máquina para onde vai o cortante.',1);$('#qMaq').focus();return}
   if(!c.op){toast('Escolhe quem fez a verificação.',1);$('#qOp').focus();return}
+  setName(c.op);
   const rep=c.res==='NOK'&&$('#qRep').checked&&c.toolId;
   const doc={ts:nowIso(),data:c.data,cod:c.cod,toolId:c.toolId,maq:c.maq,op:c.op,obs:c.obs,res:c.res,itens:c.itens.map(i=>{const o={g:i.g,t:i.t,r:i.r};if(i.c)o.c=i.c;return o}),by:S.me||'',nivel:(typeof ROLE!=='undefined'&&ROLE)||'',repar:!!rep};
   try{const ref=S.db.collection('inspections').doc(safeId(c.data+'_'+c.cod+'_'+uid()));await ref.set(doc);
@@ -782,7 +783,7 @@ $('#qSave').onclick=async()=>{
       else addHist(n,`Verificação PCM NOK por ${c.op} (${c.maq}) · não seguiu para a máquina`);await saveTools([n])}}
     toast(rep?'Verificação guardada e cortante enviado para reparação.':c.res==='OK'?`Verificação guardada · ${c.cod} na máquina ${c.maq}.`:'Verificação guardada · reprovado, fica no armazém.');
     lastSaved=doc;$('#qSave').textContent='Guardado ✓';setTimeout(()=>$('#qSave').textContent='Guardar e imprimir',2500);
-    await inspPdf(doc,true);
+    ckDone('q');await inspPdf(doc,true);
   }catch(e){toast(dbErr(e),1)}
 };
 let lastSaved=null;

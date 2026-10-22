@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="css/app.css">
 <script src="js/vendor/xlsx.full.min.js"></script>
-<script>window.PCV_VENDOR='js/vendor/';window.PCV_VERSAO='23 · 21/10/2026';</script>
+<script>window.PCV_VENDOR='js/vendor/';window.PCV_VERSAO='24 · 22/10/2026';</script>
 <script src="config.js"></script>
 <script src="js/store.js"></script>
 </head>
@@ -194,6 +194,7 @@
 <!-- OPERADOR -->
 <section class="view" id="v-operador" hidden>
   <div class="mhead"><div><h2>Operador – saída de máquina</h2><p>Verificação do cortante à saída da máquina e registo das folhas cortadas, para controlo da vida do cortante.</p></div></div>
+  <div class="panel"><h4 style="margin-bottom:4px">Cortantes nas máquinas</h4><p class="small muted" style="margin:0 0 10px">Quando um cortante sai da máquina, carrega em <b>Saída</b>: abre a checklist, que é obrigatória e é impressa ao gravar.</p><div class="fmaqs" id="xOnMaq"></div></div>
   <div class="tabs" role="tablist" data-tabs="op">
     <button role="tab" data-sub="nova">Registo de saída</button>
     <button role="tab" data-sub="hist">Histórico</button>
@@ -212,7 +213,7 @@
     <label class="f"><span>Observações</span><textarea id="xObs" placeholder="Opcional"></textarea></label>
     <div id="xVerdict"></div>
     <label class="row small" id="xRepWrap" hidden style="gap:6px"><input type="checkbox" id="xRep" checked> Enviar cortante para reparação no armazém</label>
-    <div class="row"><button class="btn pri w-only" id="xSave">Guardar registo</button><button class="btn" id="xPdf">Imprimir / PDF</button><button class="btn" id="xReset">Limpar</button></div>
+    <div class="row"><button class="btn pri w-only" id="xSave">Guardar e imprimir</button><button class="btn" id="xPdf">Imprimir / PDF</button><button class="btn" id="xReset">Limpar</button></div>
   </div>
   <div data-pane="hist" class="stack" hidden>
     <div class="row"><label class="f grow"><span>Pesquisa</span><input type="search" id="xq" placeholder="Cortante, máquina, operador…"></label>
