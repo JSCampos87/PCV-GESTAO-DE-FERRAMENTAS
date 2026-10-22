@@ -137,6 +137,8 @@ O índice pode ser atualizado de duas formas:
 
 A app só lê os nomes dos ficheiros; os PDFs abrem no SharePoint com a conta de cada pessoa.
 
+**Pedidos de compra lidos do email (mesmo registo):** acrescentar também as permissões delegadas **Mail.Read** e **Mail.Read.Shared**. A app lê a caixa `precortevinco@graphicsleader.pt` (quem entra com a conta Microsoft tem de ter acesso a essa caixa) de 20 em 20 minutos, procura os emails "[PEDIDO DE COMPRA] - 42xxxxxxxx - …" do Desenho Técnico, lê o PDF do pedido (ex.: 4220018075.pdf) e grava-o em Compras. O registo das leituras aparece na vista Compras, com o botão "Ler agora".
+
 ## 5b. Resolução de problemas
 - **"Modo local · dados neste browser"** no topo, em vez de "Ligado · partilhado": o `config.js` publicado não tem o Firebase, ou o login Anónimo/as regras não estão ativos. A app mostra um aviso amarelo "Verificar instalação" quando falta algum ficheiro.
 - **Erro "Can't find variable: XLSX"**: falta a pasta `js/vendor` no repositório. Envie de novo a pasta `js` completa.

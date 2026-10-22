@@ -243,7 +243,7 @@ function toolKeys(t){
 }
 function pdfMap(){
   if(S.pdfMap)return S.pdfMap;const M={};
-  for(const [k] of PDF_KINDS){const m=new Map();for(const n of (S.pdfidx?.[k]||[]))for(const key of pdfKeys(n)){if(!m.has(key))m.set(key,[]);m.get(key).push(n)}M[k]=m}
+  for(const [k] of PDF_KINDS){const m=new Map();const add=(key,n)=>{if(!m.has(key))m.set(key,[]);if(!m.get(key).includes(n))m.get(key).push(n)};for(const n of (S.pdfidx?.[k]||[]))for(const key of pdfKeys(n))add(key,n);for(const [n,cs] of Object.entries(S.pdfcont?.[k]||{}))for(const c of cs)add(c,n);M[k]=m}
   return S.pdfMap=M;
 }
 const pdfRank=n=>(/_R\d{3}|IMPRESS|ENSAIO|MISTUR|SEM BOCA/i.test(n)?1:0);
@@ -279,11 +279,11 @@ function renderPdfIdx(){
 /* ---- leitura direta das pastas pelo Microsoft Graph (opcional; precisa de registo da app no Microsoft Entra) ---- */
 const msCfg=()=>{const c=(window.PCV_CONFIG||{}).microsoft||{};return c.clientId?c:null};
 let msalApp=null;
-async function msToken(interactive){
+async function msToken(interactive,scopes){
   const c=msCfg();if(!c)throw new Error('Microsoft 365 não configurado');
   if(!window.msal)await new Promise((ok,ko)=>{const s=document.createElement('script');s.src=(window.PCV_VENDOR||'js/vendor/')+'msal-browser.min.js';s.onload=ok;s.onerror=()=>ko(new Error('não carregou o MSAL'));document.head.append(s)});
   if(!msalApp){msalApp=new msal.PublicClientApplication({auth:{clientId:c.clientId,authority:'https://login.microsoftonline.com/'+(c.tenantId||'organizations'),redirectUri:new URL('redirect.html',location.href).href},cache:{cacheLocation:'localStorage'}});await msalApp.initialize()}
-  const req={scopes:['Files.Read.All'],account:msalApp.getAllAccounts()[0]};
+  const req={scopes:scopes||['Files.Read.All'],account:msalApp.getAllAccounts()[0]};
   try{if(!req.account)throw 0;return (await msalApp.acquireTokenSilent(req)).accessToken}
   catch(e){if(!interactive)throw new Error('sessão Microsoft não iniciada');return (await msalApp.acquireTokenPopup({scopes:req.scopes})).accessToken}
 }
@@ -333,3 +333,85 @@ async function mailNoPdf(manual){
     toast(`Lista de ${a.length} cortantes sem PDF enviada a ${pdfTo().join(', ')}.`);if(typeof renderPdfIdx==='function')renderPdfIdx();
   }catch(e){toast('Lista sem PDF não enviada: '+e.message,1);const b=$('#pdfMail');if(b)b.disabled=false}
 }
+
+/* ============ ligar Brailles e relevos pelo conteúdo dos PDFs (v28) ============
+   Lê o texto dos PDFs escolhidos (pdf.js), procura códigos de cortante (S/T + 4 dígitos + letra) e guarda
+   config/pdfcont = {braille:{ficheiro:[códigos]}, relevo:{…}, upd:{…}}. Junta ao que já existia. */
+const CONT_RE=/(?<![A-Z0-9])([ST])(\d{4})([A-Z])(?!\d)/g;
+async function pdfContRead(kind,files){
+  const st=$('#pcStat');files=[...files].filter(f=>/\.pdf$/i.test(f.name));if(!files.length){toast('Escolhe ficheiros PDF.',1);return}
+  if(!needDb())return;
+  const found={},names=[];let n=0,withCode=0,err=0;
+  for(const f of files){n++;if(n%5===1||n===files.length)st.innerHTML=`<div class="panel progress"><span class="spin"></span> A ler ${n} de ${files.length}: ${esc(f.name)}</div>`;
+    names.push(f.name);
+    try{await LIB.pdf();const pdf=await pdfjsLib.getDocument({data:await f.arrayBuffer(),isEvalSupported:false}).promise;let txt=f.name+' ';
+      for(let p=1;p<=Math.min(pdf.numPages,3);p++){const c=await (await pdf.getPage(p)).getTextContent();txt+=c.items.map(i=>i.str).join(' ')+' '}
+      try{pdf.destroy()}catch{}
+      const cs=new Set();for(const m of txt.toUpperCase().matchAll(CONT_RE))cs.add(m[1]+m[2]+m[3]);
+      if(cs.size){withCode++;found[f.name]=[...cs].slice(0,6)}
+    }catch(e){err++}}
+  const doc=JSON.parse(JSON.stringify(S.pdfcont||{}));doc[kind]=Object.assign(doc[kind]||{},found);doc.upd=Object.assign(doc.upd||{},{[kind]:nowIso()});
+  try{await serial('config/pdfcont',()=>S.db.doc('config/pdfcont').set(doc));S.pdfcont=doc}catch(e){st.innerHTML='';toast(dbErr(e),1);return}
+  // acrescenta ao índice os ficheiros que ainda lá não estavam (para o link funcionar)
+  const cur=S.pdfidx?.[kind]||[],miss=names.filter(x=>!cur.includes(x));
+  if(miss.length)await savePdfIdx(kind,[...cur,...miss],(S.pdfidx?.src?.[kind]||'lista')+' + PDFs');
+  S.pdfMap=null;refreshAll();
+  const codes=new Set(Object.values(found).flat()),tools=[...S.tools.values()].filter(t=>t.est!=='sucatado'&&toolKeys(t).some(k=>codes.has(k))).length;
+  const sem=files.length-withCode-err;
+  st.innerHTML=`<div class="panel"><b>${files.length}</b> PDFs lidos · <b>${withCode}</b> com código de cortante · <b>${tools}</b> cortantes ligados${sem?` · ${sem} sem código no texto (ligar à mão na ficha do cortante)`:''}${err?` · ${err} não abriram`:''}.</div>`;
+  toast(`${tools} cortantes ligados a ${kind==='braille'?'Brailles':'relevos'}.`);
+}
+document.addEventListener('change',e=>{if(e.target.id==='pcFiles'&&e.target.files.length){pdfContRead($('#pcKind').value,e.target.files).finally(()=>{e.target.value=''})}});
+
+/* ============ pedidos de compra lidos automaticamente do email (v29) ============
+   O Desenho Técnico envia "[PEDIDO DE COMPRA] - 4220018075 - P-002998-04 - …" com o PDF 4220018075.pdf,
+   com a caixa precortevinco@graphicsleader.pt em cópia. Com o Microsoft 365 configurado (Mail.Read + Mail.Read.Shared),
+   a app lê essa caixa de 20 em 20 minutos (quando um PCV/SUPV tem a app aberta), lê o PDF e grava o pedido em Compras.
+   Estado em config/mailsync = {mbx, last, ids:[…], log:[{ts,subj,num,n,err}]}. */
+const MAIL_MBX_DEF='precortevinco@graphicsleader.pt';
+const mailMbx=()=>S.mailsync?.mbx||MAIL_MBX_DEF;
+async function graphGet(tok,url,bin){const r=await fetch(url.startsWith('http')?url:'https://graph.microsoft.com/v1.0'+url,{headers:{Authorization:'Bearer '+tok}});if(!r.ok)throw new Error('Graph '+r.status+': '+(await r.text()).slice(0,160));return bin?r.blob():r.json()}
+let mailBusy=false;
+async function mailSync(interactive){
+  if(mailBusy||!msCfg()||!S.db||!S.loaded.orders)return;mailBusy=true;renderMailBox('A ler o email…');
+  const st=JSON.parse(JSON.stringify(S.mailsync||{}));st.ids=st.ids||[];st.log=st.log||[];let novos=0,falhas=0;
+  try{
+    const tok=await msToken(interactive,['Mail.Read','Mail.Read.Shared']);
+    const mbx=mailMbx(),base=mbx?'/users/'+encodeURIComponent(mbx):'/me';
+    const since=st.last||new Date(Date.now()-14*864e5).toISOString();
+    const q=`${base}/messages?$filter=${encodeURIComponent(`receivedDateTime ge ${since.replace(/\.\d+Z$/,'Z')} and hasAttachments eq true`)}&$select=id,subject,receivedDateTime&$orderby=receivedDateTime asc&$top=50`;
+    const j=await graphGet(tok,q);let newest=st.last||since;
+    for(const m of j.value||[]){
+      if(m.receivedDateTime>newest)newest=m.receivedDateTime;
+      if(!/PEDIDO\s+DE\s+COMPRA/i.test(m.subject||'')||st.ids.includes(m.id))continue;
+      const num=((m.subject||'').match(/\b(4\d{9})\b/)||[])[1]||'';
+      if(num&&S.orders.some(o=>o._id===safeId(num))){st.ids.push(m.id);continue}
+      try{
+        const at=await graphGet(tok,`${base}/messages/${m.id}/attachments?$select=id,name,contentType,size`);
+        const pdfs=(at.value||[]).filter(a=>/\.pdf$/i.test(a.name||'')).sort((a,b)=>(b.name.includes(num)?1:0)-(a.name.includes(num)?1:0)||((/^4\d{9}\.pdf$/i.test(b.name))?1:0)-((/^4\d{9}\.pdf$/i.test(a.name))?1:0));
+        let lines=null;
+        for(const a of pdfs.slice(0,4)){const blob=await graphGet(tok,`${base}/messages/${m.id}/attachments/${a.id}/$value`,true);lines=parsePO(await pdfText(blob));if(lines)break}
+        if(!lines)throw new Error('não encontrei o PDF do pedido no email');
+        await saveOrderLines(lines,'email · '+(m.subject||'').slice(0,120),{emailId:m.id});
+        novos++;st.log.unshift({ts:nowIso(),subj:(m.subject||'').slice(0,140),num:lines[0].num,n:lines.length});
+      }catch(e){falhas++;st.log.unshift({ts:nowIso(),subj:(m.subject||'').slice(0,140),num,err:String(e.message||e).slice(0,160)})}
+      st.ids.push(m.id);
+    }
+    st.ids=st.ids.slice(-300);st.log=st.log.slice(0,30);st.last=newest;st.mbx=mbx;st.ok=nowIso();
+    try{await S.db.doc('config/mailsync').set(st);S.mailsync=st}catch{}
+    if(novos)toast(`${novos} pedido(s) de compra lido(s) do email.`);
+    if(falhas&&interactive)toast(`${falhas} email(s) de pedido não foram lidos – vê o registo em Compras.`,1);
+  }catch(e){if(interactive)toast('Email: '+e.message,1);st.erro=String(e.message||e).slice(0,160)}
+  finally{mailBusy=false;renderMailBox()}
+}
+function renderMailBox(busy){
+  const el=$('#mailSyncBox');if(!el)return;
+  if(!msCfg()){el.innerHTML='Leitura automática dos pedidos por email: falta a ligação ao Microsoft 365 (registo da app no Microsoft Entra, ver README). Até lá, arrasta o PDF do pedido (ex.: 4220018075.pdf) para a caixa acima.';return}
+  const s=S.mailsync||{},log=(s.log||[]).slice(0,5);
+  el.innerHTML=`<div class="row" style="gap:8px;flex-wrap:wrap"><span>📧 Pedidos lidos do email <b>${esc(mailMbx())}</b>${s.ok?' · última leitura '+fmtDT(s.ok):''}${busy?' · '+esc(busy):''}</span>${roleAtLeast('PCV')?'<button class="btn sm" id="mailNow">Ler agora</button>':''}</div>${log.length?'<div style="margin-top:4px">'+log.map(l=>`<div>${fmtDT(l.ts)} · ${l.err?'<span style="color:var(--nok)">✕ '+esc(l.subj)+' – '+esc(l.err)+'</span>':'✓ '+esc(l.num)+' ('+l.n+' linhas)'}</div>`).join('')+'</div>':''}`;
+  $('#mailNow')&&($('#mailNow').onclick=()=>mailSync(true));
+}
+setTimeout(function mailLoop(){
+  try{if(msCfg()&&S.db&&S.loaded.orders&&roleAtLeast('PCV')){const last=Date.parse(S.mailsync?.ok||0)||0;if(Date.now()-last>20*6e4)mailSync(false)}}catch{}
+  setTimeout(mailLoop,5*6e4);
+},20000);

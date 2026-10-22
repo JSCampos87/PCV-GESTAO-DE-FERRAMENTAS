@@ -95,6 +95,8 @@ async function initDb(){
   db.doc('config/positions').onSnapshot(d=>{S.positions=d.exists?(d.data().items||{}):{};S.posV=d.exists;refreshAll()},()=>{});
   db.doc('config/checklist').onSnapshot(d=>{S.cl=d.exists?d.data():null;S.clExists=d.exists;refreshQualConfig()},()=>{});
   db.doc('config/pdfmail').onSnapshot(d=>{S.pdfMail=d.exists?d.data():null;if(typeof renderPdfIdx==='function')renderPdfIdx()},()=>{});
+  db.doc('config/mailsync').onSnapshot(d=>{S.mailsync=d.exists?d.data():null;if(typeof renderMailBox==='function')renderMailBox()},()=>{});
+  db.doc('config/pdfcont').onSnapshot(d=>{S.pdfcont=d.exists?d.data():null;S.pdfMap=null;refreshAll()},()=>{});
   db.doc('config/pdfidx').onSnapshot(d=>{S.pdfidx=d.exists?d.data():null;S.pdfMap=null;refreshAll();if(typeof renderPdfIdx==='function')renderPdfIdx()},()=>{});
   db.doc('config/links').onSnapshot(d=>{S.links=d.exists?d.data():{};S.linksV=d.exists;[['#lnkC','cortante'],['#lnkB','braille'],['#lnkR','relevo']].forEach(([s,k])=>{if(document.activeElement!==$(s))$(s).value=S.links[k]||''});refreshAll()},()=>{});
   db.collection('orders').onSnapshot(snap=>{S.orders=snap.docs.map(d=>({...d.data(),_id:d.id}));S.loaded.orders=true;refreshAll()},()=>{});
@@ -178,7 +180,7 @@ function refreshAll(){
   if(typeof renderPend==='function'&&UI.view!=='inicio')renderPend();
   if(UI.view==='inicio')renderHome();
   if(UI.view==='armazem'){if(UI.arm==='lista')renderTools();if(UI.arm==='posicoes')renderPositions();if(UI.arm==='sucata')renderScrapMarked()}
-  if(UI.view==='pedidos'){if(UI.comp==='ped')renderOrders();if(UI.comp==='rhist')renderRecHist();if(UI.comp==='rkpi')renderRecKpi()}
+  if(UI.view==='pedidos'){if(typeof renderMailBox==='function')renderMailBox();if(UI.comp==='ped')renderOrders();if(UI.comp==='rhist')renderRecHist();if(UI.comp==='rkpi')renderRecKpi()}
   if(UI.view==='qualidade'){if(UI.qual==='hist')renderHist();if(UI.qual==='kpi')renderKpi();if(UI.qual==='nova')renderToolInfo()}
   if(UI.view==='operador'){if(UI.op==='hist')renderExitHist();if(UI.op==='kpi')renderExitKpi();if(UI.op==='nova')renderExitTool()}
   if(UI.view==='def'&&typeof renderDefs==='function')renderDefs();
@@ -497,7 +499,7 @@ $('#impFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;e.target
 
 /* ============ pedidos de compra ============ */
 const ORD_TESTS={num:/pedido|doc.*compra|purch|^po$|n.? ?doc|documento/,data:/^data|date|dt\.? ?doc/,forn:/fornec|vendor|supplier|credor/,mat:/^material|^mat\b|artigo|cod/,desc:/descri|texto|short text|denomina/,qtd:/quant|qtd|qty/,un:/^un|unid|uom|umb|^um$/,preco:/pre[cç]o|net price|valor|price/,entrega:/entrega|delivery/};
-const toolCode=s=>{const m=String(s||'').toUpperCase().replace(/_/g,' ').match(/(?<![A-Z0-9])([SBRF]\d{4}[A-Z])(?=M\d{2}|[^A-Z0-9]|$)/);return m?m[1]:''};
+const toolCode=s=>{const u=String(s||'').toUpperCase().replace(/_/g,' ');const m=u.match(/(?<![A-Z0-9])([SBRF]\d{4}[A-Z])(?=M\d{2}|[^A-Z0-9]|$)/);if(m)return m[1];if(/^\s*PERT/.test(u))return '';const p=u.match(/(?<![A-Z0-9])P-?(\d{6})-?(\d{2})(?!\d)/);return p?'P'+p[1]+p[2]:''};
 /* tabela do SAP sem cabeçalho (ex.: ME2N copiado): Pedido | Data | Material | Texto breve | Quantidade …
    a data só aparece na 1.ª linha de cada dia, por isso é herdada da linha anterior */
 const isOrdNum=x=>/^4\d{9}$/.test(x);
@@ -541,6 +543,19 @@ async function aiExtract(text,images,src){
   const res=await S.sample.json(AI_PROMPT+(text?'\n\nCONTEÚDO:\n'+text.slice(0,60000):'\n\nO conteúdo está na imagem anexada.'),{images:images||undefined,modelTier:'default'});
   return Array.isArray(res?.linhas)?res.linhas.map(l=>({num:String(l.num||''),data:toIsoDate(l.data||''),forn:l.forn||'',mat:String(l.mat||''),desc:l.desc||'',qtd:numVal(l.qtd),un:l.un||'',preco:numVal(l.preco),entrega:toIsoDate(l.entrega||'')})):[];
 }
+/* Pedido de Compra SAP (PDF): "Pedido de Compra 4220018075 08.10.2026", "Exmo(s) Sr(s) <fornecedor> <morada>",
+   linhas "10 130019238 <descrição> 0,010 / 1 UN 0,01 Entrega: 08.10.2026 1,00 UN" */
+function parsePO(text){
+  const t=String(text||'').replace(/\s+/g,' ');
+  const h=t.match(/Pedido de Compra\s+(4\d{9})\s+(\d{2}\.\d{2}\.\d{4})/i);if(!h)return null;
+  const num=h[1],data=toIsoDate(h[2].replace(/\./g,'/'));
+  let forn='';{const f=t.match(/Exmo\(s\)\s*Sr\(s\)\s+(.+?)\s+(?:Rua|Av\.?|Avenida|Estrada|Travessa|Largo|Zona|Lugar|Pol[ií]gono|Apartado|\d{4}-\d{3})/i);if(f)forn=f[1].trim()}
+  const U='(UN|PC|KG|M2|M|ST|EA|CX|UNI)',re=new RegExp(`(?:^|\\s)(\\d{1,4})\\s+(\\d{9})\\s+(.+?)\\s+([\\d.]*\\d,\\d+|\\d+)\\s*\\/\\s*([\\d.]+)\\s*${U}\\s+([\\d.]*\\d,\\d+|\\d+)\\s+Entrega:\\s*(\\d{2}\\.\\d{2}\\.\\d{4})\\s+([\\d.]*\\d,\\d+|\\d+)\\s+${U}`,'gi');
+  const n=s=>+String(s).replace(/\./g,'').replace(',','.');
+  const out=[];for(const m of t.matchAll(re)){const pr=n(m[4])/(n(m[5])||1);
+    out.push({num,data,forn,mat:m[2],desc:m[3].trim(),qtd:n(m[9]),un:m[10].toUpperCase(),preco:Math.round(pr*10000)/10000,entrega:toIsoDate(m[8].replace(/\./g,'/'))})}
+  return out.length?out:null;
+}
 function regexParse(t){const out=[];const num=(t.match(/\b4[25]\d{8}\b/)||[''])[0];t.split(/\r?\n/).forEach(l=>{const m=l.match(/(\d{9})\s+(.+?)\s+(\d+[,.]?\d*)\s*(UN|EA|PC|ST|KG|M2?)\b/i);if(m)out.push({num,data:'',forn:'',mat:m[1],desc:m[2].trim(),qtd:numVal(m[3]),un:m[4].toUpperCase(),preco:'',entrega:''})});return out}
 async function pdfText(file){
   await LIB.pdf();const pdf=await pdfjsLib.getDocument({data:await file.arrayBuffer(),isEvalSupported:false}).promise;let out='';
@@ -554,10 +569,12 @@ async function handleOrderInput(kind,payload,src){
       if(!lines){const txt=sh.map(s=>s.rows.map(r=>r.join('\t')).join('\n')).join('\n\n');lines=await aiExtract(txt,null,src)}}
     else if(kind==='text'){const rows=payload.split(/\r?\n/).map(l=>l.split('\t'));lines=rows.some(r=>r.length>2)?(rowsToOrders(rows,src)||sapRows(rows)):null;if(!lines){try{lines=await aiExtract(payload,null,src)}catch(e){lines=regexParse(payload);if(!lines.length)throw e}}}
     else if(kind==='pdf'){setOrdStatus(`<div class="panel progress"><span class="spin"></span> A extrair texto de ${esc(src)}…</div>`);const txt=await pdfText(payload);
-      if(txt.replace(/\s/g,'').length<40){lines=await aiExtract('',[payload],src)}else{try{lines=await aiExtract(txt,null,src)}catch(e){lines=sapRows(txt.split(/\n/).map(l=>l.split(/\s{2,}/)))||regexParse(txt);if(!lines||!lines.length)throw e}}}
+      lines=parsePO(txt);
+      if(lines){}else if(txt.replace(/\s/g,'').length<40){lines=await aiExtract('',[payload],src)}else{try{lines=await aiExtract(txt,null,src)}catch(e){lines=sapRows(txt.split(/\n/).map(l=>l.split(/\s{2,}/)))||regexParse(txt);if(!lines||!lines.length)throw e}}}
     else if(kind==='image'){try{lines=await aiExtract('',[payload],src)}catch(e){throw new Error(e?.code==='not_granted'?'A leitura de imagens não foi autorizada. Autoriza o Claude quando a app pedir, ou copia as linhas no SAP (Ctrl + C) e cola aqui.':(e.message||String(e)))}}
     if(!lines||!lines.length){setOrdStatus(`<div class="banner" style="margin:0">Não encontrei linhas de pedido em ${esc(src)}. Experimenta copiar a tabela do SAP e colar aqui (Ctrl + V).</div>`);return}
     const lastNum=lines.find(l=>l.num)?.num||'';lines.forEach(l=>{if(!l.num)l.num=lastNum;l.cod=toolCode(l.desc)||toolCode(l.mat)});
+    {const ja=[...new Set(lines.map(l=>l.num).filter(n=>n&&S.orders.some(o=>o._id===safeId(n))))];if(ja.length){lines=lines.filter(l=>!ja.includes(l.num));toast('Já registado'+(ja.length>1?'s':'')+': '+ja.join(', ')+' – não foi repetido.');if(!lines.length){if(!ordDraft)setOrdStatus('');return}}}
     ordDraft={src,lines:(ordDraft&&ordDraft.lines.length?[...ordDraft.lines,...lines]:lines)};renderDraft();
   }catch(e){setOrdStatus(`<div class="banner" style="margin:0">${esc(e.message||e.code||String(e))}</div>`)}
 }
@@ -575,16 +592,20 @@ function renderDraft(){
   $('#drSave').onclick=saveDraft;
 }
 async function saveDraft(){
-  if(!needDb())return;const groups={};
-  for(const l of ordDraft.lines){const k=String(l.num||'').trim()||('SEM-'+today());(groups[k]=groups[k]||[]).push(l)}
+  if(!needDb())return;
+  try{await saveOrderLines(ordDraft.lines,ordDraft.src);toast('Pedidos guardados.');ordDraft=null;renderDraft()}catch(e){toast(dbErr(e),1)}
+}
+async function saveOrderLines(lines,src,extra){
+  const groups={};
+  for(const l of lines){const k=String(l.num||'').trim()||('SEM-'+today());(groups[k]=groups[k]||[]).push(l)}
   try{for(const[num,ls]of Object.entries(groups)){
     const id=safeId(num);const ex=S.orders.find(o=>o._id===id);
     const clean=ls.map(l=>{const o={mat:String(l.mat||''),desc:l.desc||'',qtd:numVal(l.qtd),un:l.un||'',preco:numVal(l.preco),entrega:toIsoDate(l.entrega||''),cod:toolCode(l.desc)||toolCode(l.mat)};for(const k in o)if(o[k]===''||o[k]==null)delete o[k];return o});
     const head={num,data:toIsoDate(ls.find(l=>l.data)?.data||'')||today(),forn:ls.find(l=>l.forn)?.forn||''};
     if(ex){const seen=new Set((ex.linhas||[]).map(l=>(l.mat||'')+'|'+(l.desc||'')));const add=clean.filter(l=>!seen.has((l.mat||'')+'|'+(l.desc||'')));
       await serial('orders/'+id,()=>S.db.doc('orders/'+id).update({linhas:[...(ex.linhas||[]),...add],forn:ex.forn||head.forn}))}
-    else await serial('orders/'+id,()=>S.db.doc('orders/'+id).set({...head,estado:'Encomendado',origem:ordDraft.src,criado:nowIso(),by:S.me||'',linhas:clean}));
-  }toast('Pedidos guardados.');ordDraft=null;renderDraft()}catch(e){toast(dbErr(e),1)}
+    else await serial('orders/'+id,()=>S.db.doc('orders/'+id).set({...head,estado:'Encomendado',origem:src,criado:nowIso(),by:S.me||'',linhas:clean,...(extra||{})}));
+  }}finally{}
 }
 const drop=$('#drop');
 $('#pick').onclick=e=>{e.stopPropagation();$('#ordFile').click()};
