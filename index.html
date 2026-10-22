@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="css/app.css">
 <script src="js/vendor/xlsx.full.min.js"></script>
-<script>window.PCV_VENDOR='js/vendor/';window.PCV_VERSAO='24 · 22/10/2026';</script>
+<script>window.PCV_VENDOR='js/vendor/';window.PCV_VERSAO='27 · 22/10/2026';</script>
 <script src="config.js"></script>
 <script src="js/store.js"></script>
 </head>
@@ -95,6 +95,7 @@
       <label class="f" style="grid-column:span 2"><span>Pesquisa</span><input type="search" id="q" placeholder="Código, posição, cliente, material, denominação…" autocomplete="off"></label>
       <label class="f"><span>Local</span><select id="fLocal"></select></label>
       <label class="f"><span>Estado</span><select id="fEst"><option value="ativos">Ativos (sem sucatados)</option><option value="">Todos</option><option value="armazem">Em armazém</option><option value="maquina">Na máquina</option><option value="arrumar">Por arrumar</option><option value="reparacao">Em reparação</option><option value="sucatado">Sucatados</option><option value="sucatar">Marcados p/ sucatar</option></select></label>
+      <label class="f"><span>PDF do cortante</span><select id="fPdf"><option value="">Todos</option><option value="sem">Sem PDF</option><option value="com">Com PDF</option></select></label>
     </div>
     <div class="tw"><table class="t"><thead><tr><th>Cortante</th><th>Posição / local</th><th>Cliente</th><th>Denominação</th><th class="th-acc">Braille</th><th class="th-acc">Relevo</th><th>Estado</th></tr></thead><tbody id="toolRows"></tbody></table></div>
     <div class="pager" id="pager"></div>
@@ -272,6 +273,7 @@
       <div><button class="btn" id="edMailTest">Enviar email de teste (para mim)</button> <input type="text" id="edTestTo" placeholder="o teu email" style="max-width:280px"></div></div>
     <div class="three">
       <div class="panel stack"><h3 style="font-size:16px">NOK de fornecedores</h3><p class="muted small" style="margin:0">Não conformidades detetadas na receção de material.</p><div id="lstNc"></div></div>
+      <div class="panel stack"><h3 style="font-size:16px">Cortantes sem PDF</h3><p class="muted small" style="margin:0">Lista dos cortantes ativos sem PDF associado. É enviada automaticamente quando o índice de PDFs é atualizado e a lista muda, ou à mão em Definições › Dados e SharePoint.</p><div id="lstPdf"></div></div>
       <div class="panel stack"><h3 style="font-size:16px">Limite de vida atingido</h3><p class="muted small" style="margin:0">Quando um cortante ultrapassa o limite de folhas.</p><div id="lstVida"></div></div>
       <div class="panel stack"><h3 style="font-size:16px">Saída NOK de máquina</h3><p class="muted small" style="margin:0">Quando o operador regista um cortante NOK à saída.</p><div id="lstSaida"></div></div>
     </div>

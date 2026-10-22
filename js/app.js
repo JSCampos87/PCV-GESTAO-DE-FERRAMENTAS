@@ -94,6 +94,7 @@ async function initDb(){
   },e=>{toast('Ligação às ferramentas perdida: '+(e.message||e.code),1)});
   db.doc('config/positions').onSnapshot(d=>{S.positions=d.exists?(d.data().items||{}):{};S.posV=d.exists;refreshAll()},()=>{});
   db.doc('config/checklist').onSnapshot(d=>{S.cl=d.exists?d.data():null;S.clExists=d.exists;refreshQualConfig()},()=>{});
+  db.doc('config/pdfmail').onSnapshot(d=>{S.pdfMail=d.exists?d.data():null;if(typeof renderPdfIdx==='function')renderPdfIdx()},()=>{});
   db.doc('config/pdfidx').onSnapshot(d=>{S.pdfidx=d.exists?d.data():null;S.pdfMap=null;refreshAll();if(typeof renderPdfIdx==='function')renderPdfIdx()},()=>{});
   db.doc('config/links').onSnapshot(d=>{S.links=d.exists?d.data():{};S.linksV=d.exists;[['#lnkC','cortante'],['#lnkB','braille'],['#lnkR','relevo']].forEach(([s,k])=>{if(document.activeElement!==$(s))$(s).value=S.links[k]||''});refreshAll()},()=>{});
   db.collection('orders').onSnapshot(snap=>{S.orders=snap.docs.map(d=>({...d.data(),_id:d.id}));S.loaded.orders=true;refreshAll()},()=>{});
@@ -240,6 +241,7 @@ function filteredTools(){
   let a=[...S.tools.values()];
   {const B=t=>accOf(t,'braille'),R=t=>accOf(t,'relevo');if(UI.acc==='br')a=a.filter(B);else if(UI.acc==='rl')a=a.filter(R);else if(UI.acc==='brrl')a=a.filter(t=>B(t)&&R(t));}
   if(loc)a=a.filter(t=>t.local===loc);
+  {const fp=$('#fPdf')?.value;if(fp==='sem')a=a.filter(t=>!pdfUrl(t,'cortante'));else if(fp==='com')a=a.filter(t=>!!pdfUrl(t,'cortante'))}
   if(est==='ativos')a=a.filter(t=>t.est!=='sucatado');else if(est==='sucatar')a=a.filter(t=>t.dec==='Sucatar'&&t.est!=='sucatado');else if(est)a=a.filter(t=>(t.est||'armazem')===est);
   if(q){const ws=q.split(/\s+/);a=a.filter(t=>{const h=norm([t.cod,t.pos,t.local,t.cli,t.ncli,t.mat,t.den,t.notas,t.obs,t.kam,t.br&&('braille '+(t.br.pos||'')),t.rl&&('relevo '+(t.rl.pos||''))].join(' '));return ws.every(w=>h.includes(w))})}
   return a.sort((x,y)=>(!x.pos)-(!y.pos)||String(x.pos||'').localeCompare(String(y.pos||''),'pt',{numeric:true})||String(x.cod).localeCompare(String(y.cod)));
@@ -281,12 +283,12 @@ function renderTools(){
   $('#pager').innerHTML=`<span>${a.length} ${a.length===1?'cortante':'cortantes'}</span>`+(pages>1?`<button class="btn sm" data-pg="-1" ${UI.page?'':'disabled'}>‹</button><span class="mono">${UI.page+1}/${pages}</span><button class="btn sm" data-pg="1" ${UI.page<pages-1?'':'disabled'}>›</button>`:'');
 }
 $('#typeChips').addEventListener('click',e=>{const b=e.target.closest('[data-acc]');if(b){UI.acc=b.dataset.acc;UI.page=0;renderTools()}});
-['#q','#fLocal','#fEst'].forEach(s=>$(s).addEventListener('input',()=>{UI.page=0;renderTools()}));
+['#q','#fLocal','#fEst','#fPdf'].forEach(s=>$(s).addEventListener('input',()=>{UI.page=0;renderTools()}));
 $('#pager').addEventListener('click',e=>{const b=e.target.closest('[data-pg]');if(b){UI.page+=+b.dataset.pg;renderTools()}});
 $('#toolRows').addEventListener('click',e=>{if(e.target.closest('a'))return;const np=e.target.closest('[data-nopdf]');if(np){const t=S.tools.get(np.closest('[data-tool]').dataset.tool);if(t)openToolForm(t,{focus:np.dataset.nopdf});return}const r=e.target.closest('[data-tool]');if(r)openTool(r.dataset.tool)});
-const toolCols=[['Parâmetros (máquina: pressão / velocidade)',t=>Object.entries(t.param||{}).map(([m,x])=>m+': '+(x.p||'-')+' / '+(x.v||'-')).join('; ')],['Local',t=>t.local],['Posição',t=>t.pos],['Código',t=>t.cod],['Notas',t=>t.notas],['Material',t=>t.mat],['Denominação',t=>t.den],['Observações',t=>t.obs],['Nº Cliente',t=>t.ncli],['Nome Cliente',t=>t.cli],['KAM',t=>t.kam],['Última Data',t=>fmtD(t.ult)],['Status',t=>t.dec],['Estado',t=>EST[t.est||'armazem']],['PDF Cortante',t=>t.pdf||''],['Braille',t=>t.br?'Sim':''],['Posição Braille',t=>t.br?.pos],['PDF Braille',t=>t.br?.pdf],['Relevo',t=>t.rl?'Sim':''],['Posição Relevo',t=>t.rl?.pos],['PDF Relevo',t=>t.rl?.pdf],['Atualizado',t=>fmtD(t.upd)]];
+const toolCols=[['Parâmetros (máquina: pressão / velocidade)',t=>Object.entries(t.param||{}).map(([m,x])=>m+': '+(x.p||'-')+' / '+(x.v||'-')).join('; ')],['Local',t=>t.local],['Posição',t=>t.pos],['Código',t=>t.cod],['Notas',t=>t.notas],['Material',t=>t.mat],['Denominação',t=>t.den],['Observações',t=>t.obs],['Nº Cliente',t=>t.ncli],['Nome Cliente',t=>t.cli],['KAM',t=>t.kam],['Última Data',t=>fmtD(t.ult)],['Status',t=>t.dec],['Estado',t=>EST[t.est||'armazem']],['PDF Cortante',t=>pdfUrl(t,'cortante')||''],['Braille',t=>t.br?'Sim':''],['Posição Braille',t=>t.br?.pos],['PDF Braille',t=>accOf(t,'braille')?pdfUrl(t,'braille'):''],['Relevo',t=>t.rl?'Sim':''],['Posição Relevo',t=>t.rl?.pos],['PDF Relevo',t=>accOf(t,'relevo')?pdfUrl(t,'relevo'):''],['Atualizado',t=>fmtD(t.upd)]];
 const toolsAoa=a=>[toolCols.map(c=>c[0]),...a.map(t=>toolCols.map(c=>c[1](t)??''))];
-const accName=()=>({br:'Cortantes_com_Braille',rl:'Cortantes_com_Relevo'})[UI.acc]||'Cortantes';
+const accName=()=>(({br:'Cortantes_com_Braille',rl:'Cortantes_com_Relevo'})[UI.acc]||'Cortantes')+({sem:'_sem_PDF',com:'_com_PDF'}[$('#fPdf')?.value]||'');
 $('#expXls').onclick=()=>exportXlsx(`${accName()}_PCV_${today()}.xlsx`,[['Cortantes',toolsAoa(filteredTools())]]);
 $('#expAllXls').onclick=()=>{const all=[...S.tools.values()].sort((a,b)=>String(a.pos).localeCompare(String(b.pos),'pt',{numeric:true}));exportXlsx(`Armazem_PCV_${today()}.xlsx`,[['Cortantes',toolsAoa(all)],['Brailles',[['Cortante','Posição Braille','PDF'],...all.filter(t=>t.br).map(t=>[t.cod,t.br.pos||'',pdfUrl(t,'braille')])]],['Relevos',[['Cortante','Posição Relevo','PDF'],...all.filter(t=>t.rl).map(t=>[t.cod,t.rl.pos||'',pdfUrl(t,'relevo')])]]])};
 $('#expFreeXls').onclick=()=>{const f=freePositions();exportXlsx(`Posicoes_livres_${today()}.xlsx`,[['Livres',[['Local','Posição','Nota'],...f.map(p=>[S.positions[p]?.l||'',p,S.positions[p]?.n||''])]]])};
@@ -400,6 +402,7 @@ function openToolForm(t,preIn){
     <label class="f"><span>Posição do ${L.toLowerCase()}</span><input type="text" data-a="${k}.pos" value="${esc(it.pos||'')}" placeholder="a definir" list="nfPosAll"></label>
     <label class="f"><span>Local</span><input type="text" data-a="${k}.local" value="${esc(it.local||'')}"></label>
     <label class="f" style="grid-column:1/-1"><span>Link do PDF do ${L.toLowerCase()} (SharePoint)</span><input type="text" data-a="${k}.pdf" value="${esc(it.pdf||'')}" placeholder="https://…"></label>
+    <div class="f" style="grid-column:1/-1"><span>Procurar o PDF na pasta ${k==='br'?'00 - BRAILLES':'02 - RELEVOS'}</span><input type="search" data-pq="${k}" placeholder="Produto, cliente, código SAP (1300…) ou MM (8000…)" autocomplete="off"><div class="pqres" data-pr="${k}"></div></div>
     <label class="f" style="grid-column:1/-1"><span>Nota</span><input type="text" data-a="${k}.nota" value="${esc(it.nota||'')}"></label></div></fieldset>`}).join('')}<datalist id="nfPos">${freePositions().slice(0,400).map(p=>`<option value="${esc(p)}">${esc(S.positions[p]?.l||'')}</option>`).join('')}</datalist><datalist id="nfPosAll">${Object.keys(allPositions()).filter(p=>!occupied().has(p)).slice(0,600).map(p=>`<option value="${esc(p)}">`).join('')}</datalist><datalist id="nfLoc">${locals().map(l=>`<option>${esc(l)}</option>`).join('')}</datalist>
   <div id="nfWarn"></div><div class="row"><button class="btn pri" id="nfSave">${t?'Guardar alterações':'Registar entrada'}</button><button class="btn" data-close>Cancelar</button></div></div>`);
   const chk=()=>{const p=$('[data-k=pos]',dr).value.trim().toUpperCase();const o=occupied().get(p)?.filter(x=>!t||x.id!==t.id);$('#nfWarn').innerHTML=o?.length?`<div class="banner" style="margin:0">Atenção: a posição ${esc(p)} já tem ${o.map(x=>esc(x.cod)).join(', ')}.</div>`:'';const l=allPositions()[p]?.l;if(l&&!$('[data-k=local]',dr).value)$('[data-k=local]',dr).value=l};
@@ -409,6 +412,16 @@ function openToolForm(t,preIn){
   $('[data-k=pos]',dr).oninput=chk;chk();
   dr.addEventListener('input',()=>{const b=$('#nfSave');if(b)delete b.dataset.force});
   $$('[data-has]',dr).forEach(c=>c.onchange=()=>{c.closest('fieldset').querySelector('.grid-f').hidden=!c.checked});
+  /* procurar o PDF do Braille/relevo no índice da pasta e ligar com um clique */
+  $$('[data-pq]',dr).forEach(inp=>{const k=inp.dataset.pq,kind=k==='br'?'braille':'relevo',box=$(`[data-pr="${k}"]`,dr);
+    const names=(S.pdfidx?.[kind]||[]),base=folderOf(kind);
+    if(!names.length||!base){box.innerHTML=`<span class="small muted">${base?'O índice desta pasta ainda não foi carregado':'A pasta ainda não está definida'} (Definições › Dados e SharePoint).</span>`;inp.disabled=true;return}
+    const run=()=>{const ws=norm(inp.value).split(/\s+/).filter(w=>w.length>=2);if(!ws.length){box.innerHTML='';return}
+      const hit=names.filter(n=>{const h=norm(n);return ws.every(w=>h.includes(w))}).slice(0,15);
+      box.innerHTML=hit.length?hit.map(n=>`<button type="button" class="pqi" data-pn="${esc(n)}">${PDF_SVG}<span>${esc(n)}</span></button>`).join('')+(hit.length===15?'<span class="small muted">Mostra só os primeiros 15: escreve mais palavras para afinar.</span>':''):'<span class="small muted">Nenhum PDF com esse texto.</span>'};
+    inp.oninput=run;
+    box.onclick=e=>{const b=e.target.closest('[data-pn]');if(!b)return;$(`[data-a="${k}.pdf"]`,dr).value=base+encodeURIComponent(b.dataset.pn);box.innerHTML=`<span class="small" style="color:var(--ok)">Ligado: ${esc(b.dataset.pn)}. Carrega em “Guardar alterações”.</span>`;inp.value=''};
+  });
   if(focus==='pdf'){const i=$('[data-k=pdf]',dr);i.scrollIntoView({block:'center'});i.focus()}
   else if(focus){const fk=focus.split('.')[0];const c=$(`[data-has="${fk}"]`,dr);if(c&&!c.checked){c.checked=true;c.onchange()}$('#af-'+fk).scrollIntoView({block:'center'});$(`[data-a="${focus.includes('.')?focus:fk+'.pos'}"]`,dr)?.focus()}
   if(false){const c=$(`[data-has="${focus}"]`,dr);if(c&&!c.checked){c.checked=true;c.onchange()}$('#af-'+focus).scrollIntoView({block:'center'});$(`[data-a="${focus}.pos"]`,dr)?.focus()}

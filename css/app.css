@@ -300,3 +300,4 @@ body:not(.role-OP) [data-only="OP"]{display:none!important}
 body.ck-open{overflow:hidden}
 .xom{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line)}.xom>span{flex:1;display:flex;flex-direction:column;min-width:0}.xom small{color:var(--muted,#6b7a71);font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #xOnMaq{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+.pqres{display:flex;flex-direction:column;gap:2px;margin-top:4px;max-height:260px;overflow:auto}.pqi{display:flex;align-items:center;gap:8px;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:5px 8px;cursor:pointer;font-size:12.5px}.pqi:hover{background:var(--brand-soft)}.pqi svg{flex:none}

@@ -87,7 +87,8 @@ const LISTS={
   lstRec:{key:'recetores',get:()=>recetores(),ph:'Nome de quem receciona',what:'nome'},
   lstNc:{key:'ncTo',get:()=>ncTo(),ph:'email@graphicsleader.pt',mail:true,what:'email'},
   lstVida:{key:'vidaTo',get:()=>mailTo('vida'),ph:'email@graphicsleader.pt',mail:true,what:'email',fb:true},
-  lstSaida:{key:'saidaTo',get:()=>mailTo('saida'),ph:'email@graphicsleader.pt',mail:true,what:'email',fb:true}};
+  lstSaida:{key:'saidaTo',get:()=>mailTo('saida'),ph:'email@graphicsleader.pt',mail:true,what:'email',fb:true},
+  lstPdf:{key:'pdfTo',get:()=>pdfTo(),ph:'email@graphicsleader.pt',mail:true,what:'email'}};
 function wireList(id){
   const el=$('#'+id),c=LISTS[id];if(!el||el.dataset.w)return;el.dataset.w='1';
   el.innerHTML=`<div class="lst"></div><div class="small muted" data-fbnote hidden style="margin-top:4px">Ainda sem lista própria: usa os destinatários dos NOK de fornecedores.</div><div class="row w-only" style="margin-top:8px"><input type="${c.mail?'email':'text'}" data-ladd placeholder="${esc(c.ph)}" class="grow"><button class="btn sm" data-laddb>Adicionar</button></div>`;
@@ -262,15 +263,18 @@ function pdfCoverage(kind,names){
 async function savePdfIdx(kind,names,src){
   if(!needDb())return false;const cur=S.pdfidx||{};
   const doc={...cur,[kind]:names,upd:{...(cur.upd||{}),[kind]:nowIso()},src:{...(cur.src||{}),[kind]:src}};
-  try{await serial('config/pdfidx',()=>S.db.doc('config/pdfidx').set(doc));S.pdfidx=doc;S.pdfMap=null;refreshAll();renderPdfIdx();toast(`${names.length} PDFs indexados (${PDF_KINDS.find(x=>x[0]===kind)[1]}).`);return true}catch(e){toast(dbErr(e),1);return false}
+  try{await serial('config/pdfidx',()=>S.db.doc('config/pdfidx').set(doc));S.pdfidx=doc;S.pdfMap=null;refreshAll();renderPdfIdx();setTimeout(()=>mailNoPdf(false),1500);toast(`${names.length} PDFs indexados (${PDF_KINDS.find(x=>x[0]===kind)[1]}).`);return true}catch(e){toast(dbErr(e),1);return false}
 }
 function renderPdfIdx(){
   const el=$('#pdfIdx');if(!el)return;const ms=msCfg();
   el.innerHTML=`<div class="tw"><table class="t"><thead><tr><th>Pasta</th><th class="num">PDFs</th><th class="num">Cortantes com PDF</th><th>Atualizado</th></tr></thead><tbody>${PDF_KINDS.map(([k,l])=>{const n=(S.pdfidx?.[k]||[]).length;
     const c=n?[...S.tools.values()].filter(t=>t.est!=='sucatado'&&pdfFiles(t,k).length).length:0;
     return `<tr><td>${l}</td><td class="num">${n||'—'}</td><td class="num">${n?c:'—'}</td><td class="small">${S.pdfidx?.upd?.[k]?fmtDT(S.pdfidx.upd[k])+' · '+esc(S.pdfidx.src?.[k]||''):'<span class="muted">nunca</span>'}</td></tr>`}).join('')}</tbody></table></div>
-    <div class="row">${ms?'<button class="btn pri" id="pdfSync">Atualizar agora do SharePoint (Microsoft 365)</button>':'<span class="small muted">Leitura direta do SharePoint: ainda não configurada (ver README › Ligação ao Microsoft 365). Enquanto isso, usa o CSV abaixo.</span>'}<span class="small muted" id="pdfSyncMsg"></span></div>`;
+    <div class="row">${ms?'<button class="btn pri" id="pdfSync">Atualizar agora do SharePoint (Microsoft 365)</button>':'<span class="small muted">Leitura direta do SharePoint: ainda não configurada (ver README › Ligação ao Microsoft 365). Enquanto isso, usa o CSV abaixo.</span>'}<span class="small muted" id="pdfSyncMsg"></span></div>
+    ${(()=>{const n=[...S.tools.values()].filter(t=>t.est!=='sucatado'&&!pdfUrl(t,'cortante')).length;return `<div class="row"><span class="small"><b>${n}</b> cortantes ativos sem PDF associado.</span>${n?'<button class="btn sm" id="pdfMissing">Ver lista no Armazém</button><button class="btn sm w-only" id="pdfMail">Enviar lista por email</button>':''}<span class="small muted">${S.pdfMail?.ts?'Último envio: '+fmtDT(S.pdfMail.ts)+' ('+S.pdfMail.n+')':''}</span></div>`})()}`;
   $('#pdfSync')&&($('#pdfSync').onclick=()=>pdfSync(true));
+  $('#pdfMail')&&($('#pdfMail').onclick=()=>mailNoPdf(true));
+  $('#pdfMissing')&&($('#pdfMissing').onclick=()=>{UI.acc='';$('#q').value='';$('#fLocal').value='';$('#fEst').value='ativos';$('#fPdf').value='sem';UI.page=0;go('armazem','lista')});
 }
 /* ---- leitura direta das pastas pelo Microsoft Graph (opcional; precisa de registo da app no Microsoft Entra) ---- */
 const msCfg=()=>{const c=(window.PCV_CONFIG||{}).microsoft||{};return c.clientId?c:null};
@@ -303,3 +307,29 @@ setTimeout(function autoSync(){
     const last=Math.min(...PDF_KINDS.map(([k])=>Date.parse(S.pdfidx?.upd?.[k]||0)||0));
     if(Date.now()-last>4*36e5)pdfSync(false)}catch{}
 },8000);
+
+/* ============ lista de cortantes sem PDF por email (v26) ============
+   Manual (botão) ou automática depois de cada atualização do índice, só se a lista mudou desde o último envio.
+   O último envio fica em config/pdfmail = {sig, ts, n, by}. */
+const PDF_TO_DEF=['americo.assuncao@graphicsleader.pt','david.malheiro@graphicsleader.pt'];
+const pdfTo=()=>S.cl&&S.cl.pdfTo&&S.cl.pdfTo.length?S.cl.pdfTo:PDF_TO_DEF;
+function noPdfTools(){return [...S.tools.values()].filter(t=>t.est!=='sucatado'&&!pdfUrl(t,'cortante')).sort((x,y)=>(!x.pos)-(!y.pos)||String(x.pos||'').localeCompare(String(y.pos||''),'pt',{numeric:true})||String(x.cod).localeCompare(String(y.cod)))}
+async function mailNoPdf(manual){
+  try{
+    if(!S.db||!S.loaded.tools)return;
+    if(!manual&&!(S.pdfidx&&PDF_KINDS.some(([k])=>(S.pdfidx[k]||[]).length)))return; // sem índice: não envia sozinho
+    if(manual&&!needDb())return;
+    const a=noPdfTools(),sig=a.map(t=>t.id).join('|');
+    if(!manual){if(S.pdfMail&&S.pdfMail.sig===sig)return;if(!EJ())return}
+    if(!EJ()){toast('Envio automático de emails não configurado (config.js › emailjs).',1);return}
+    if(!a.length&&!manual)return;
+    const MAX=500,lines=a.slice(0,MAX).map(t=>[t.pos||'(sem posição)',t.cod,t.cli||t.den||'',EST[t.est||'armazem']].join(' · '));
+    const body=`Cortantes ativos sem PDF associado: ${a.length}\n(posição · código · cliente · estado)\n\n`+lines.join('\n')+(a.length>MAX?`\n\n… e mais ${a.length-MAX}. A lista completa está na app: Armazém › Cortantes › filtro "PDF do cortante: Sem PDF" › Exportar Excel.`:'')+
+      `\n\nOs PDFs são ligados pelo código no nome do ficheiro (ex.: S1980B → S1980BM02_08EX.pdf), nas pastas 01 - CORTANTES, 00 - BRAILLES e 02 - RELEVOS do SharePoint.\n\nMensagem automática da app PCV Ferramentas.`;
+    const b=$('#pdfMail');if(b)b.disabled=true;
+    await sendMail(pdfTo(),`[PCV] ${a.length} ${a.length===1?'cortante':'cortantes'} sem PDF – ${fmtD(today())}`,body);
+    const rec={sig,ts:nowIso(),n:a.length,by:S.me||''};S.pdfMail=rec;
+    try{await S.db.doc('config/pdfmail').set(rec)}catch{}
+    toast(`Lista de ${a.length} cortantes sem PDF enviada a ${pdfTo().join(', ')}.`);if(typeof renderPdfIdx==='function')renderPdfIdx();
+  }catch(e){toast('Lista sem PDF não enviada: '+e.message,1);const b=$('#pdfMail');if(b)b.disabled=false}
+}
