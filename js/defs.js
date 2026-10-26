@@ -170,7 +170,7 @@ $('#pwSave').onclick=async()=>{
 
 function renderDefs(){
   checkRoleCfg();renderPdfIdx();
-  Object.keys(LISTS).forEach(renderList);renderEdOp();renderVida();renderMail();
+  Object.keys(LISTS).forEach(renderList);renderEdOp();renderVida();renderMail();if(typeof renderDirs==='function')renderDirs();
 }
 
 /* histórico da ficha visível também para o operador: saídas de máquina */
@@ -338,8 +338,8 @@ async function mailNoPdf(manual){
    Lê o texto dos PDFs escolhidos (pdf.js), procura códigos de cortante (S/T + 4 dígitos + letra) e guarda
    config/pdfcont = {braille:{ficheiro:[códigos]}, relevo:{…}, upd:{…}}. Junta ao que já existia. */
 const CONT_RE=/(?<![A-Z0-9])([ST])(\d{4})([A-Z])(?!\d)/g;
-async function pdfContRead(kind,files){
-  const st=$('#pcStat');files=[...files].filter(f=>/\.pdf$/i.test(f.name));if(!files.length){toast('Escolhe ficheiros PDF.',1);return}
+async function pdfContRead(kind,files,quiet){
+  const st=(!quiet&&$('#pcStat'))||document.createElement('div');files=[...files].filter(f=>/\.pdf$/i.test(f.name));if(!files.length){toast('Escolhe ficheiros PDF.',1);return}
   if(!needDb())return;
   const found={},names=[];let n=0,withCode=0,err=0;
   for(const f of files){n++;if(n%5===1||n===files.length)st.innerHTML=`<div class="panel progress"><span class="spin"></span> A ler ${n} de ${files.length}: ${esc(f.name)}</div>`;
@@ -359,7 +359,7 @@ async function pdfContRead(kind,files){
   const codes=new Set(Object.values(found).flat()),tools=[...S.tools.values()].filter(t=>t.est!=='sucatado'&&toolKeys(t).some(k=>codes.has(k))).length;
   const sem=files.length-withCode-err;
   st.innerHTML=`<div class="panel"><b>${files.length}</b> PDFs lidos · <b>${withCode}</b> com código de cortante · <b>${tools}</b> cortantes ligados${sem?` · ${sem} sem código no texto (ligar à mão na ficha do cortante)`:''}${err?` · ${err} não abriram`:''}.</div>`;
-  toast(`${tools} cortantes ligados a ${kind==='braille'?'Brailles':'relevos'}.`);
+  if(!quiet||tools)toast(`${tools} cortantes ligados a ${kind==='braille'?'Brailles':'relevos'}.`);
 }
 document.addEventListener('change',e=>{if(e.target.id==='pcFiles'&&e.target.files.length){pdfContRead($('#pcKind').value,e.target.files).finally(()=>{e.target.value=''})}});
 
@@ -415,3 +415,61 @@ setTimeout(function mailLoop(){
   try{if(msCfg()&&S.db&&S.loaded.orders&&roleAtLeast('PCV')){const last=Date.parse(S.mailsync?.ok||0)||0;if(Date.now()-last>20*6e4)mailSync(false)}}catch{}
   setTimeout(mailLoop,5*6e4);
 },20000);
+
+/* ============ pastas sincronizadas (OneDrive) lidas diretamente pela app (v32) ============
+   File System Access API (Chrome/Edge no computador). Os "handles" das pastas ficam no IndexedDB deste browser.
+   Pastas: cortante, braille, relevo (índice de PDFs) e pedidos (PDFs dos pedidos de compra).
+   Ficheiros já tratados (conteúdo lido / pedidos) ficam em localStorage para não repetir. */
+const DIRS=[['cortante','01 - Cortantes'],['braille','00 - Brailles'],['relevo','02 - Relevos'],['pedidos','Pedidos de compra (PDF)']];
+const dirDb=()=>new Promise((ok,ko)=>{const r=indexedDB.open('pcv_dirs',1);r.onupgradeneeded=()=>r.result.createObjectStore('h');r.onsuccess=()=>ok(r.result);r.onerror=()=>ko(r.error)});
+async function dirGet(k){try{const d=await dirDb();return await new Promise(ok=>{const q=d.transaction('h').objectStore('h').get(k);q.onsuccess=()=>ok(q.result||null);q.onerror=()=>ok(null)})}catch{return null}}
+async function dirSet(k,v){const d=await dirDb();await new Promise(ok=>{const tx=d.transaction('h','readwrite');v?tx.objectStore('h').put(v,k):tx.objectStore('h').delete(k);tx.oncomplete=ok;tx.onerror=ok})}
+const dirDone=k=>{try{return new Set(JSON.parse(localStorage.getItem('pcv_dirdone_'+k)||'[]'))}catch{return new Set()}};
+const dirSaveDone=(k,set)=>{try{localStorage.setItem('pcv_dirdone_'+k,JSON.stringify([...set].slice(-5000)))}catch{}};
+async function dirPerm(h,ask){if(!h)return 'none';const o={mode:'read'};let p=await h.queryPermission(o);if(p!=='granted'&&ask)p=await h.requestPermission(o);return p}
+async function dirFiles(h){const out=[];for await(const e of h.values())if(e.kind==='file'&&/\.pdf$/i.test(e.name))out.push(e);return out}
+let dirBusy=false,dirMsg='';
+async function renderDirs(){
+  const el=$('#dirList');if(!el)return;
+  if(!window.showDirectoryPicker){el.innerHTML='<p class="small muted">Este browser não permite ler pastas do computador. Usa o <b>Chrome</b> ou o <b>Edge</b> num computador.</p>';return}
+  const rows=[];for(const [k,lab] of DIRS){const h=await dirGet(k),p=h?await dirPerm(h,false):'none';
+    rows.push(`<tr><td>${lab}</td><td>${h?esc(h.name):'<span class="muted">—</span>'}</td><td>${p==='granted'?'<span class="pill p-armazem">ligada</span>':h?'<span class="pill p-reparacao">sem permissão</span>':'<span class="muted">não definida</span>'}</td><td class="w-only" style="white-space:nowrap">${h&&p!=='granted'?`<button class="btn sm pri" data-dperm="${k}">Reativar</button> `:''}<button class="btn sm" data-dpick="${k}">${h?'Trocar':'Escolher pasta'}</button>${h?` <button class="btn sm" data-dclr="${k}">Tirar</button>`:''}</td></tr>`)}
+  const ok=(await Promise.all(DIRS.map(async([k])=>{const h=await dirGet(k);return h&&await dirPerm(h,false)==='granted'}))).some(Boolean);
+  el.innerHTML=`<div class="tw"><table class="t"><thead><tr><th>Para</th><th>Pasta no computador</th><th>Estado</th><th></th></tr></thead><tbody>${rows.join('')}</tbody></table></div><div class="row" style="margin-top:8px">${ok?'<button class="btn w-only" id="dirScan">Ler as pastas agora</button>':''}<span class="small muted">${esc(dirMsg)}</span></div>`;
+  $('#dirScan')&&($('#dirScan').onclick=()=>dirScan(true));
+}
+document.addEventListener('click',async e=>{
+  const pk=e.target.closest('[data-dpick]'),pm=e.target.closest('[data-dperm]'),cl=e.target.closest('[data-dclr]');
+  if(pk){try{const h=await showDirectoryPicker({id:'pcv_'+pk.dataset.dpick,mode:'read'});await dirSet(pk.dataset.dpick,h);toast('Pasta ligada: '+h.name);await renderDirs();dirScan(true)}catch(err){if(err.name!=='AbortError')toast('Não foi possível ligar a pasta: '+err.message,1)}}
+  if(pm){const h=await dirGet(pm.dataset.dperm);if(await dirPerm(h,true)==='granted'){await renderDirs();dirScan(true)}}
+  if(cl){await dirSet(cl.dataset.dclr,null);renderDirs()}
+});
+async function dirScan(manual){
+  if(dirBusy||!S.db||!S.loaded.tools||!S.loaded.orders||!roleAtLeast('PCV')||!window.showDirectoryPicker)return;dirBusy=true;
+  const log=[];
+  try{
+    for(const [k,lab] of DIRS){
+      const h=await dirGet(k);if(!h||await dirPerm(h,false)!=='granted')continue;
+      const files=await dirFiles(h),names=files.map(f=>f.name);
+      if(k!=='pedidos'){
+        const cur=new Set(S.pdfidx?.[k]||[]);
+        if(names.length&&(names.length!==cur.size||names.some(n=>!cur.has(n)))){await savePdfIdx(k,names,'pasta sincronizada');log.push(`${lab}: ${names.length} PDFs`)}
+        if(k!=='cortante'){const done=dirDone(k),novos=files.filter(f=>!done.has(f.name));
+          if(novos.length){dirMsg=`A ler ${novos.length} PDFs novos de ${lab}…`;renderDirs();
+            const fs=[];for(const f of novos)try{fs.push(await f.getFile())}catch{}
+            await pdfContRead(k,fs,true);novos.forEach(f=>done.add(f.name));dirSaveDone(k,done);log.push(`${lab}: ${novos.length} lidos`)}}
+      }else{
+        const done=dirDone(k);let n=0;
+        for(const f of files){if(done.has(f.name))continue;
+          try{const file=await f.getFile();if(Date.now()-file.lastModified<90*864e5){const lines=parsePO(await pdfText(file));
+            if(lines){const num=lines[0].num;if(!S.orders.some(o=>o._id===safeId(num))){await saveOrderLines(lines,'pasta · '+f.name);n++}}}}catch{}
+          done.add(f.name)}
+        dirSaveDone(k,done);if(n){log.push(`${n} pedido(s) de compra novos`);toast(`${n} pedido(s) de compra registados a partir da pasta.`)}
+      }
+    }
+    dirMsg='Última leitura: '+fmtDT(nowIso())+(log.length?' · '+log.join(' · '):' · sem novidades');
+    if(manual&&!log.length)toast('Pastas lidas: sem novidades.');
+  }catch(e){dirMsg='Erro ao ler as pastas: '+e.message;if(manual)toast(dirMsg,1)}
+  finally{dirBusy=false;renderDirs()}
+}
+setTimeout(function dirLoop(){try{dirScan(false)}catch{}setTimeout(dirLoop,10*6e4)},12000);
