@@ -14,8 +14,8 @@ function flowData(){
     else if(!l.rec)lines.Fenc.push({o,i,l})})}
   return {z,lines};
 }
-const toolCard=(t,z)=>`<div class="fcard${UI.flowSel?.id===t.id?' sel':''}" draggable="true" data-ft="${esc(t.id)}" data-fz="${z}" title="Arrasta para outra zona, ou clica e depois clica na zona de destino">
-  <b class="mono">${esc(t.cod)}</b><span>${esc((t.cli||t.den||'').slice(0,34))}</span>
+const toolCard=(t,z)=>`<div class="fcard${UI.flowSel?.id===t.id?' sel':''}${t.ckEnt&&z==='P'?' prep':''}" draggable="true" data-ft="${esc(t.id)}" data-fz="${z}" title="${t.ckEnt?'Checklist de entrada em curso — continua a preencher':'Arrasta para outra zona, ou clica e depois clica na zona de destino'}">
+  <b class="mono">${esc(t.cod)}</b><span>${esc((t.cli||t.den||'').slice(0,34))}</span>${t.ckEnt?`<span class="prepbadge">● Em preparação para ${esc(t.ckEnt.maq||'?')} · ${t.ckEnt.done}/${t.ckEnt.tot}</span>`:''}
   <small>${z==='A'||z==='P'?'Posição <b class="mono">'+esc(t.pos||'—')+'</b>':''}${z==='P'&&t.maqUlt?' · veio de '+esc(t.maqUlt)+(t.arrRes==='NOK'?' <span class="pill p-nok">NOK</span>':''):''}${z==='F'?esc((t.repMot||'reparação').slice(0,40)):''}${z==='M'&&t.maqDesde?'desde '+fmtD(t.maqDesde):''}</small></div>`;
 const lineCard=(x,kind)=>{const k=x.o._id+'|'+x.i,sel=UI.flowSel?.k===k;return `<div class="fcard line${sel?' sel':''}" draggable="true" data-fl="${esc(k)}" data-fk="${kind}" title="Linha do pedido ${esc(x.o.num)}">
   <b class="mono">${esc(x.l.cod||x.l.mat||'?')}</b><span>${esc((x.l.desc||'').slice(0,34))}</span>
@@ -25,11 +25,11 @@ function renderFlow(){
   const {z,lines}=flowData(),nM=Object.values(z.M).reduce((s,a)=>s+a.length,0);
   const q=norm(UI.flowQ||'');const aList=q.length>=2?z.A.filter(t=>norm(t.cod+' '+(t.pos||'')+' '+(t.cli||'')).includes(q)).slice(0,30):[];
   const can=roleAtLeast('PCV');
-  $('#flowSum').innerHTML=[['A',z.A.length],['P',z.P.length+lines.P.length],['M',nM],['F',z.F.length+lines.Fret.length]].map(([k,n])=>`<div class="fsum z${k}"><b>${n}</b><span>${zoneName(k)}</span></div>`).join('')+`<div class="fsum zE"><b>${lines.Fenc.length}</b><span>encomendados</span></div>`;
+  $('#flowSum').innerHTML=[['A',z.A.length],['P',z.P.length+lines.P.length],['M',nM],['F',z.F.length+lines.Fret.length]].map(([k,n])=>`<div class="fsum z${k}" data-drop="${k}" title="Arrasta para aqui"><b>${n}</b><span>${zoneName(k)}</span></div>`).join('')+`<div class="fsum zE"><b>${lines.Fenc.length}</b><span>encomendados</span></div>`;
   el.innerHTML=`
   <section class="fzone fzP" data-drop="P"><header><span class="fdot">${z.P.length+lines.P.length}</span><div><h3>Pré-corte e vinco</h3><p>Por arrumar: regressados das máquinas e receções</p></div></header>
     <div class="flist">${z.P.map(t=>toolCard(t,'P')).join('')}${lines.P.map(x=>lineCard(x,'rec')).join('')||''}${!z.P.length&&!lines.P.length?'<p class="fempty">Nada por arrumar.</p>':''}</div></section>
-  <section class="fzone fzF" data-drop="F"><header><span class="fdot">${z.F.length+lines.Fret.length}</span><div><h3>${esc(FORN_REP())}</h3><p>Em reparação, devolvidos e encomendas a caminho</p></div></header>
+  <section class="fzone fzF" data-drop="F"><header><span class="fdot">${z.F.length+lines.Fret.length}</span><div>${/^famag$/i.test(FORN_REP())?`<img class="famag-logo" src="img/famag.png" alt="FAMAG">`:`<h3>${esc(FORN_REP())}</h3>`}<p>Em reparação, devolvidos e encomendas a caminho</p></div></header>
     <div class="flist">${z.F.map(t=>toolCard(t,'F')).join('')}${lines.Fret.map(x=>lineCard(x,'ret')).join('')}${!z.F.length&&!lines.Fret.length?'<p class="fempty">Nenhuma ferramenta no fornecedor.</p>':''}
     ${lines.Fenc.length?`<details class="fenc"><summary>${lines.Fenc.length} encomendados (arrasta para o PCV quando chegarem)</summary>${lines.Fenc.slice(0,60).map(x=>lineCard(x,'enc')).join('')}</details>`:''}</div></section>
   <div class="ftri" aria-hidden="true"><svg viewBox="0 0 200 120"><defs><marker id="fa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="#9fb3a7"/></marker></defs>
@@ -138,7 +138,7 @@ function ckOpen(kind,t,maq){
   ckClose(true);if(typeof closeDrawer==='function'&&!$('#ov').hidden)closeDrawer();$('#fmodal')&&($('#fmodal').hidden=true);
   const q=kind==='q',pane=$(q?'#v-qualidade [data-pane="nova"]':'#v-operador [data-pane="nova"]');if(!pane)return;
   fillMaqSelect();
-  if(q){resetQ();Q.tool=t;$('#qCod').value=t.cod;$('#qData').value=today();const m=maq||'';if(m&&machines().includes(m))$('#qMaq').value=m;else $('#qMaq').value='';renderToolInfo()}
+  if(q){resetQ();Q.tool=t;$('#qCod').value=t.cod;$('#qData').value=today();const prog=t.ckEnt;const m=maq||(prog&&prog.maq)||'';if(m&&machines().includes(m))$('#qMaq').value=m;else $('#qMaq').value='';if(prog&&prog.ans){Q.ans=JSON.parse(JSON.stringify(prog.ans));if(prog.op)$('#qOp').value=prog.op;}renderChecklist();renderToolInfo()}
   else{$('#xReset').click();X.tool=t;$('#xCod').value=t.cod;const m=maq||t.maq||'';if(m&&machines().includes(m))$('#xMaq').value=m;renderExitTool()}
   let m=$('#ckModal');
   if(!m){m=document.createElement('div');m.id='ckModal';m.className='ckmodal';m.hidden=true;

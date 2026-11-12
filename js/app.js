@@ -182,13 +182,23 @@ function refreshAll(){
   if(UI.view==='armazem'){if(UI.arm==='lista')renderTools();if(UI.arm==='posicoes')renderPositions();if(UI.arm==='sucata')renderScrapMarked()}
   if(UI.view==='pedidos'){if(typeof renderMailBox==='function')renderMailBox();if(UI.comp==='ped')renderOrders();if(UI.comp==='rhist')renderRecHist();if(UI.comp==='rkpi')renderRecKpi()}
   if(UI.view==='qualidade'){if(UI.qual==='hist')renderHist();if(UI.qual==='kpi')renderKpi();if(UI.qual==='nova')renderToolInfo()}
-  if(UI.view==='operador'){if(UI.op==='hist')renderExitHist();if(UI.op==='kpi')renderExitKpi();if(UI.op==='nova')renderExitTool()}
+  if(UI.view==='operador'){if(UI.op==='hist')renderExitHist();if(UI.op==='kpi')renderExitKpi();if(UI.op==='nova')renderExitTool();if(UI.op==='param')renderOpParam()}
   if(UI.view==='def'&&typeof renderDefs==='function')renderDefs();
   if(UI.view==='armazem')sync3D();
 }
 
 /* ============ início ============ */
-function renderHome(){
+function agentInit(){
+  const q=$('#agentQ');if(!q||q.dataset.b)return;q.dataset.b='1';
+  $('#agentGo')&&($('#agentGo').onclick=runAgent);
+  q.addEventListener('keydown',e=>{if(e.key==='Enter')runAgent()});
+  q.addEventListener('input',()=>{if(!q.value.trim()){$('#agentOut').hidden=true}});
+  const chips=['na máquina','por receber','com Braille','em reparação','no pré-corte','posições livres'];
+  $('#agentChips').innerHTML=chips.map(c=>`<button class="agent-chip" data-agc="${c}">${c}</button>`).join('');
+  $('#agentChips').onclick=e=>{const b=e.target.closest('[data-agc]');if(b){q.value=b.dataset.agc;runAgent()}};
+  $('#agentOut').addEventListener('click',e=>{const a=e.target.closest('[data-agtool]');if(a)openTool(a.dataset.agtool)});
+}
+function renderHome(){agentInit();
   const all=[...S.tools.values()];const act=all.filter(t=>t.est!=='sucatado');
   const rep=act.filter(t=>t.est==='reparacao').length;const free=freePositions().length;
   const st=(v,l,c)=>`<div class="stat ${c||''}"><b>${v}</b><span>${l}</span></div>`;
@@ -279,7 +289,7 @@ function renderTools(){
   const a=filteredTools();UI.hl3d=norm($('#q').value).length>=2&&a.length<=12?a.map(t=>t.pos).filter(Boolean):[];const pages=Math.max(1,Math.ceil(a.length/PAGE));UI.page=Math.min(UI.page,pages-1);
   const rows=a.slice(UI.page*PAGE,(UI.page+1)*PAGE);
   $('#toolRows').innerHTML=!S.loaded.tools?`<tr><td colspan="7" class="empty">${S.db?'A carregar ferramentas…':'Sem ligação à base de dados.'}</td></tr>`:
-    rows.length?rows.map(t=>`<tr class="click" data-tool="${esc(t.id)}"><td class="code"><span class="acc">${esc(t.cod)}${pdfIcon(t,'cortante','desenho do cortante')}</span></td><td class="pos">${esc(t.pos||'—')}${t.local?`<div class="small muted" style="font-family:var(--f-sans)">${esc(t.local)}</div>`:''}</td><td>${esc(t.cli||t.ncli||'')}</td><td class="wrap">${esc(t.den||'')}${t.notas?`<div class="small muted">${esc(t.notas)}</div>`:''}</td><td class="accc">${accCell(t,'braille')}</td><td class="accc">${accCell(t,'relevo')}</td><td>${estPill(t)}${vidaTag(t)}${t.ult?`<div class="small muted mono" title="Última data" style="margin-top:3px">${fmtD(t.ult)}</div>`:''}</td></tr>`).join(''):
+    rows.length?rows.map(t=>`<tr class="click" data-tool="${esc(t.id)}"><td class="code"><span class="acc">${esc(t.cod)}${pdfIcon(t,'cortante','desenho do cortante')}${nPecas(t)>1?` <span class="pill p-maquina" title="Conjunto de ${nPecas(t)} peças">+${nPecas(t)-1}</span>`:''}</span></td><td class="pos">${esc(t.pos||'—')}${t.local?`<div class="small muted" style="font-family:var(--f-sans)">${esc(t.local)}</div>`:''}</td><td>${esc(t.cli||t.ncli||'')}</td><td class="wrap">${esc(t.den||'')}${t.notas?`<div class="small muted">${esc(t.notas)}</div>`:''}</td><td class="accc">${accCell(t,'braille')}</td><td class="accc">${accCell(t,'relevo')}</td><td>${estPill(t)}${vidaTag(t)}${t.ult?`<div class="small muted mono" title="Última data" style="margin-top:3px">${fmtD(t.ult)}</div>`:''}</td></tr>`).join(''):
     `<tr><td colspan="7" class="empty">${S.tools.size?'Nenhum cortante corresponde à pesquisa.':'Ainda não há cortantes registados. Usa “+ Novo cortante” ou importa um Excel em “Importar / exportar”.'+(window.PCV_SEED&&S.canWrite?'<div style="margin-top:12px"><button class="btn pri" id="seedGo">Carregar base inicial (lista CORTANTES PCV)</button></div>':S.canWrite?'<div style="margin-top:8px">Para carregar a base inicial: <b>Importar / exportar › Repor cópia…</b> e escolher o ficheiro <span class="mono">PCV_base_inicial.json</span>.</div>':'')}</td></tr>`;
   if(typeof sync3D==='function')sync3D();
   $('#pager').innerHTML=`<span>${a.length} ${a.length===1?'cortante':'cortantes'}</span>`+(pages>1?`<button class="btn sm" data-pg="-1" ${UI.page?'':'disabled'}>‹</button><span class="mono">${UI.page+1}/${pages}</span><button class="btn sm" data-pg="1" ${UI.page<pages-1?'':'disabled'}>›</button>`:'');
@@ -343,6 +353,7 @@ function openTool(id){
     <button class="btn" id="dEdit">Editar dados</button>
   </div>
   <div id="dAct"></div>
+  ${nPecas(t)>1?`<div class="panel stack" style="gap:6px"><div class="row"><h4 class="grow">Conjunto · ${nPecas(t)} peças</h4></div><p class="small muted" style="margin:0">Arrumam e movem-se juntas numa só posição. “Separar” torna a peça numa ferramenta independente.</p><div class="tw"><table class="t"><tbody>${pecasDe(t).map(p=>`<tr><td>${esc(p.nome)}</td><td style="text-align:right">${p.tipo==='cortante'?'<span class=\'small muted\'>principal</span>':`<button class="btn sm w-only" data-sep="${esc(p.tipo)}" data-min="PCV">Separar</button>`}</td></tr>`).join('')}</tbody></table></div></div>`:''}
   <div class="panel stack" style="gap:8px"><div class="row"><h4 class="grow">Parâmetros ideais por máquina</h4><button class="btn sm w-only" id="dParEdit" data-min="PCV">Editar</button></div><div id="dPar">${paramTable(t)}</div></div>
   <div class="panel"><div class="row"><span class="small muted grow">Vida do cortante</span><b class="mono">${fmtN(t.folhas)}</b><span class="small muted">/ ${fmtN(vidaMax(t))} folhas${t.vidaMax?' (limite próprio)':''}</span></div>${vidaBar(t)}${(+t.folhas||0)>=vidaMax(t)?'<div class="small" style="color:var(--nok);margin-top:6px">Ultrapassou o limite de vida. Avaliar substituição ou reparação.</div>':''}</div>
   <dl class="kv panel">${kv('Material',esc(t.mat))}${kv('Denominação',esc(t.den))}${kv('Cliente',esc([t.ncli,t.cli].filter(Boolean).join(' · ')))}${kv('KAM',esc(t.kam))}${kv('Última data',fmtD(t.ult))}${kv('Notas',esc(t.notas))}${kv('Observações',esc(t.obs))}${kv('Status',esc(t.dec))}${kv('Revisão',esc(t.rev))}${kv('Atualizado',fmtD(t.upd))}</dl>
@@ -370,6 +381,16 @@ function openTool(id){
   $('#dRep')&&($('#dRep').onclick=()=>{act.innerHTML=`<div class="panel row"><label class="f grow"><span>Motivo</span><input type="text" id="rpM" placeholder="ex.: lâmina partida"></label><button class="btn pri" id="rpOk" style="margin-top:18px">Enviar</button></div>`;$('#rpOk').onclick=()=>upd({est:'reparacao',repDesde:today(),repMot:$('#rpM').value.trim(),repOrig:'Manual'},'Enviado para reparação'+($('#rpM').value.trim()?': '+$('#rpM').value.trim():''))});
   $('#dScrap')&&($('#dScrap').onclick=()=>{if(!roleAtLeast('SUPV'))return;act.innerHTML=`<div class="confirm"><span class="grow">Sucatar <b>${esc(t.cod)}</b> e libertar a posição <b>${esc(t.pos||'—')}</b>?</span><button class="btn danger" id="scOk">Sim, sucatar</button><button class="btn" id="scNo">Cancelar</button></div>`;$('#scNo').onclick=()=>act.innerHTML='';$('#scOk').onclick=()=>upd({est:'sucatado',posAnt:t.pos||'',pos:''},'Sucatado; posição '+(t.pos||'—')+' libertada')});
   $('#dEdit')&&($('#dEdit').onclick=()=>openToolForm(t));
+  $$('[data-sep]',dr).forEach(b=>b.onclick=async()=>{
+    const tipo=b.dataset.sep,nome=PECA_NOME[tipo]||tipo;
+    if(!confirm(`Separar “${nome}” de ${t.cod}? Fica uma ferramenta independente, que terás de arrumar numa posição própria.`))return;
+    const rest=pecasDe(t).filter(p=>p.tipo!==tipo);
+    const base={...t};if(rest.length>1)base.pecas=rest;else delete base.pecas;addHist(base,`Separada a peça ${nome}`);
+    const nova={id:safeId(t.cod+'-'+tipo)+'-'+uid().slice(-4),cod:t.cod+' · '+nome,tipo:'peca',pecaDe:t.id,pecaTipo:tipo,
+      mat:t.mat||'',cli:t.cli||'',ncli:t.ncli||'',den:(nome+' de '+(t.den||t.cod)),est:'armazem'};
+    addHist(nova,`Separada do conjunto ${t.cod}`);
+    b.disabled=true;if(await saveTools([base,nova])){toast(`“${nome}” separada. Arruma-a numa posição.`);openToolForm(nova,{focus:'pos'})}
+  });
   $('#dParEdit')&&($('#dParEdit').onclick=()=>{const P=t.param||{};
     $('#dPar').innerHTML=`<div class="tw"><table class="t"><thead><tr><th>Máquina</th><th>Pressão</th><th>Velocidade</th><th>Nota</th></tr></thead><tbody>${machines().map(m=>`<tr><td class="code">${esc(m)}</td><td><input type="text" data-pm="${esc(m)}" data-pk="p" value="${esc(P[m]?.p||'')}" placeholder="ex.: 180 t"></td><td><input type="text" data-pm="${esc(m)}" data-pk="v" value="${esc(P[m]?.v||'')}" placeholder="ex.: 6500 f/h"></td><td><input type="text" data-pm="${esc(m)}" data-pk="n" value="${esc(P[m]?.n||'')}" placeholder="opcional"></td></tr>`).join('')}</tbody></table></div><div class="row" style="margin-top:8px"><button class="btn pri sm" id="dParSave">Guardar parâmetros</button><button class="btn sm" id="dParNo">Cancelar</button></div>`;
     $('#dParNo').onclick=()=>{$('#dPar').innerHTML=paramTable(t)};
@@ -381,9 +402,32 @@ function openTool(id){
 function paramTable(t){const P=t.param||{};const ms=[...new Set([...machines(),...Object.keys(P)])].filter(m=>P[m]);
   return ms.length?`<div class="tw"><table class="t"><thead><tr><th>Máquina</th><th>Pressão</th><th>Velocidade</th><th>Nota</th></tr></thead><tbody>${ms.map(m=>`<tr><td class="code">${esc(m)}</td><td class="mono">${esc(P[m].p||'—')}</td><td class="mono">${esc(P[m].v||'—')}</td><td class="small">${esc(P[m].n||'')}</td></tr>`).join('')}</tbody></table></div>`:'<p class="small muted" style="margin:0">Sem parâmetros registados. Usa “Editar” para indicar a pressão e a velocidade ideais em cada máquina.</p>'}
 function accPanel(t,kind){const k=kind==='braille'?'br':'rl',it=accOf(t,kind),L=kind==='braille'?'Braille':'Relevo';
+  if(typeof roleAtLeast==='function'&&!roleAtLeast('PCV')){return `<div class="panel acc-p${it?'':' off'}"><div class="small muted">${L}</div><div class="${it?'':'muted'}" style="font-size:20px;font-weight:700">${it?'SIM':'NÃO'}</div></div>`;}
   if(!it)return `<div class="panel acc-p off"><div class="small muted">${L}</div><div class="muted">Sem ${L.toLowerCase()}</div><button class="btn sm w-only" data-min="PCV" data-accedit="${k}">+ Associar ${L.toLowerCase()}</button></div>`;
   const u=pdfUrl(t,kind);
   return `<div class="panel acc-p"><div class="row"><span class="small muted grow">${L}</span>${u?`<a class="btn sm" href="${esc(u)}" target="_blank" rel="noopener">${PDF_SVG} PDF</a>`:''}</div><div class="mono" style="font-size:20px;font-weight:600;color:var(--brand-ink)">${esc(it.pos||'Posição a definir')}</div>${it.local?`<div class="small">${esc(it.local)}</div>`:''}${it.nota?`<div class="small muted">${esc(it.nota)}</div>`:''}<button class="btn sm w-only" data-min="PCV" data-accedit="${k}">Editar ${L.toLowerCase()}</button></div>`}
+
+/* ============ Conjunto de ferramentas de um cortante (v34) ============
+   Um cortante pode reunir várias peças (cortante, descasques, desmoldagem, separação,
+   pertinax, gravuras, chapa fresada, apara frontal). Guardadas em t.pecas = [{tipo,nome}].
+   Sem t.pecas, a ferramenta é um conjunto de uma peça (o próprio cortante). */
+const PECA_TIPOS=[
+  ['cortante','Cortante',/^(C|CF)_|^cortante/i],
+  ['descM','Descasque macho',/^(descasque\s*macho|descm|desc\s*m|descom)\b/i],
+  ['descF','Descasque fêmea',/^(descasque\s*f[eê]mea|descf|desc\s*f|descof|descasque)\b/i],
+  ['desmold','Desmoldagem',/^(desmold|desmol|desmoldagem)/i],
+  ['separacao','Separação',/^(sep|separa|separa[cç][aã]o)/i],
+  ['pertinax','Pertinax',/^pert/i],
+  ['grm','Gravura macho',/^grm/i],
+  ['grf','Gravura fêmea',/^grf/i],
+  ['fresada','Chapa fresada',/^(fres|fresa)/i],
+  ['apara','Apara frontal',/^apar/i],
+];
+const PECA_NOME=Object.fromEntries(PECA_TIPOS.map(p=>[p[0],p[1]]));
+function pecaTipo(den){const d=String(den||'').trim();for(const [id,,re] of PECA_TIPOS)if(re.test(d))return id;return 'cortante';}
+function pecasDe(t){return Array.isArray(t.pecas)&&t.pecas.length?t.pecas:[{tipo:'cortante',nome:'Cortante'}];}
+function nPecas(t){return pecasDe(t).length;}
+
 function openToolForm(t,preIn){
   const {onSaved,focus,...pre}=preIn||{};
   const n=t?JSON.parse(JSON.stringify(t)):{tipo:'cortante',est:'armazem',...pre};
@@ -398,7 +442,7 @@ function openToolForm(t,preIn){
    <label class="f"><span>Última data</span><input type="date" data-k="ult" value="${esc(n.ult||'')}"></label>
    <label class="f"><span>Status</span><select data-k="dec"><option value="">—</option><option ${n.dec==='Manter'?'selected':''}>Manter</option><option ${n.dec==='Sucatar'?'selected':''}>Sucatar</option></select></label>
    ${F('den','Denominação','',1)}${F('notas','Notas','',1)}${F('obs','Observações','',1)}
-   ${F('pdf','Link do PDF do cortante (SharePoint)','https://…sharepoint.com/…/S3601A.pdf',1)}
+   <fieldset class="accf"><legend>Peças do conjunto</legend><p class="small muted" style="grid-column:1/-1;margin:.2rem 0">Marca as ferramentas que fazem parte deste conjunto. Arrumam e movem-se juntas; podes separar depois na ficha.</p><div class="row" style="grid-column:1/-1;flex-wrap:wrap;gap:6px 16px">${PECA_TIPOS.map(([id,nome])=>{const on=(n.pecas?n.pecas:[{tipo:'cortante'}]).some(p=>p.tipo===id)||id==='cortante';return `<label class="row" style="gap:6px;width:auto"><input type="checkbox" data-peca="${id}" ${on?'checked':''} ${id==='cortante'?'disabled':''}>${esc(nome)}</label>`}).join('')}</div></fieldset>${F('pdf','Link do PDF do cortante (SharePoint)','https://…sharepoint.com/…/S3601A.pdf',1)}
   </div>
   ${['br','rl'].map(k=>{const L=k==='br'?'Braille':'Relevo',it=n[k]||{};return `<fieldset class="accf" id="af-${k}"><legend><label class="row" style="gap:6px"><input type="checkbox" data-has="${k}" ${n[k]?'checked':''}> Este cortante tem ${L.toLowerCase()}</label></legend><div class="grid-f" ${n[k]?'':'hidden'}>
     <label class="f"><span>Posição do ${L.toLowerCase()}</span><input type="text" data-a="${k}.pos" value="${esc(it.pos||'')}" placeholder="a definir" list="nfPosAll"></label>
@@ -406,7 +450,7 @@ function openToolForm(t,preIn){
     <label class="f" style="grid-column:1/-1"><span>Link do PDF do ${L.toLowerCase()} (SharePoint)</span><input type="text" data-a="${k}.pdf" value="${esc(it.pdf||'')}" placeholder="https://…"></label>
     <div class="f" style="grid-column:1/-1"><span>Procurar o PDF na pasta ${k==='br'?'00 - BRAILLES':'02 - RELEVOS'}</span><input type="search" data-pq="${k}" placeholder="Produto, cliente, código SAP (1300…) ou MM (8000…)" autocomplete="off"><div class="pqres" data-pr="${k}"></div></div>
     <label class="f" style="grid-column:1/-1"><span>Nota</span><input type="text" data-a="${k}.nota" value="${esc(it.nota||'')}"></label></div></fieldset>`}).join('')}<datalist id="nfPos">${freePositions().slice(0,400).map(p=>`<option value="${esc(p)}">${esc(S.positions[p]?.l||'')}</option>`).join('')}</datalist><datalist id="nfPosAll">${Object.keys(allPositions()).filter(p=>!occupied().has(p)).slice(0,600).map(p=>`<option value="${esc(p)}">`).join('')}</datalist><datalist id="nfLoc">${locals().map(l=>`<option>${esc(l)}</option>`).join('')}</datalist>
-  <div id="nfWarn"></div><div class="row"><button class="btn pri" id="nfSave">${t?'Guardar alterações':'Registar entrada'}</button><button class="btn" data-close>Cancelar</button></div></div>`);
+  <div id="nfWarn"></div><div class="row"><button class="btn pri" id="nfSave">${t?'Guardar alterações':'Registar entrada'}</button>${t?'':'<button class="btn" id="nfSaveMaq">Registar e enviar à máquina</button>'}<button class="btn" data-close>Cancelar</button></div></div>`);
   const chk=()=>{const p=$('[data-k=pos]',dr).value.trim().toUpperCase();const o=occupied().get(p)?.filter(x=>!t||x.id!==t.id);$('#nfWarn').innerHTML=o?.length?`<div class="banner" style="margin:0">Atenção: a posição ${esc(p)} já tem ${o.map(x=>esc(x.cod)).join(', ')}.</div>`:'';const l=allPositions()[p]?.l;if(l&&!$('[data-k=local]',dr).value)$('[data-k=local]',dr).value=l};
   const sug=()=>{const l=$('[data-k=local]',dr).value.trim();const fr=freePositions(l);const fa=fr.length?fr:freePositions();$('#nfSug').innerHTML=`<span class="small">Posições livres${fr.length&&l?' em '+esc(l):''} (clica para escolher):</span> ${fa.slice(0,12).map(p=>`<button type="button" class="chip mono" data-sugp="${esc(p)}">${esc(p)}</button>`).join(' ')||'<i>nenhuma</i>'}`};
   $('#nfSug').onclick=e=>{const b=e.target.closest('[data-sugp]');if(!b)return;const i=$('[data-k=pos]',dr);i.value=b.dataset.sugp;const l=allPositions()[b.dataset.sugp]?.l;if(l)$('[data-k=local]',dr).value=l;chk()};
@@ -424,19 +468,21 @@ function openToolForm(t,preIn){
     inp.oninput=run;
     box.onclick=e=>{const b=e.target.closest('[data-pn]');if(!b)return;$(`[data-a="${k}.pdf"]`,dr).value=base+encodeURIComponent(b.dataset.pn);box.innerHTML=`<span class="small" style="color:var(--ok)">Ligado: ${esc(b.dataset.pn)}. Carrega em “Guardar alterações”.</span>`;inp.value=''};
   });
-  if(focus==='pdf'){const i=$('[data-k=pdf]',dr);i.scrollIntoView({block:'center'});i.focus()}
+  if(focus==='pdf'||focus==='pos'||focus==='cod'){const i=$('[data-k='+focus+']',dr);if(i){i.scrollIntoView({block:'center'});i.focus()}}
   else if(focus){const fk=focus.split('.')[0];const c=$(`[data-has="${fk}"]`,dr);if(c&&!c.checked){c.checked=true;c.onchange()}$('#af-'+fk).scrollIntoView({block:'center'});$(`[data-a="${focus.includes('.')?focus:fk+'.pos'}"]`,dr)?.focus()}
   if(false){const c=$(`[data-has="${focus}"]`,dr);if(c&&!c.checked){c.checked=true;c.onchange()}$('#af-'+focus).scrollIntoView({block:'center'});$(`[data-a="${focus}.pos"]`,dr)?.focus()}
-  $('#nfSave').onclick=async()=>{
-    const o={...n};$$('[data-k]',dr).forEach(i=>{const v=i.value.trim();if(v)o[i.dataset.k]=v;else delete o[i.dataset.k]});if(o.folhas)o.folhas=Math.max(0,Math.round(+o.folhas)||0);if(o.vidaMax)o.vidaMax=Math.max(1000,Math.round(+o.vidaMax)||0);
+  const doSave=async(toMaqName)=>{
+    const o={...n};if(toMaqName!=null){o._toMaq=true;o._toMaqName=toMaqName}$$('[data-k]',dr).forEach(i=>{const v=i.value.trim();if(v)o[i.dataset.k]=v;else delete o[i.dataset.k]});if(o.folhas)o.folhas=Math.max(0,Math.round(+o.folhas)||0);{const ps=[{tipo:'cortante',nome:'Cortante'}];$$('[data-peca]',dr).forEach(c=>{if(c.checked&&c.dataset.peca!=='cortante')ps.push({tipo:c.dataset.peca,nome:PECA_NOME[c.dataset.peca]||c.dataset.peca})});if(ps.length>1)o.pecas=ps;else delete o.pecas};if(o.vidaMax)o.vidaMax=Math.max(1000,Math.round(+o.vidaMax)||0);
     for(const k of ['br','rl']){if($(`[data-has="${k}"]`,dr).checked){const it={};$$(`[data-a^="${k}."]`,dr).forEach(i=>{const v=i.value.trim();if(v)it[i.dataset.a.split('.')[1]]=k&&i.dataset.a.endsWith('.pos')?v.toUpperCase():v});o[k]=it}else delete o[k]}
     if(!o.cod){toast('O código é obrigatório.',1);return}o.cod=o.cod.toUpperCase();if(o.pos)o.pos=o.pos.toUpperCase();
-    if(!t&&!o.pos){toast('Escolhe a posição do cortante (há sugestões de posições livres por baixo).',1);$('[data-k=pos]',dr).focus();return}
+    if(!t&&!o.pos&&!o._toMaq){toast('Sem posição? Usa “Registar e enviar à máquina” se ainda não vai ser arrumado.',1);$('[data-k=pos]',dr).focus();return}
     {const ps=[o.pos,o.br?.pos,o.rl?.pos].filter(Boolean);if(new Set(ps).size<ps.length){toast('O cortante, o Braille e o relevo têm de ter posições diferentes.',1);return}const clash=ps.flatMap(p=>(occupied().get(p)||[]).filter(x=>!t||x.id!==t.id).map(x=>p+' ('+x.cod+')'));if(clash.length&&!$('#nfSave').dataset.force){$('#nfSave').dataset.force='1';$('#nfWarn').innerHTML=`<div class="banner" style="margin:0">Posição ocupada: ${esc(clash.join(', '))}. Carrega outra vez em guardar para confirmar mesmo assim.</div>`;return}}
-    if(!t){o.id=safeId(o.cod)+(S.tools.has(safeId(o.cod))?'-'+uid().slice(-4):'');o.est='armazem';addHist(o,'Entrada no armazém'+(o.pos?' em '+o.pos:''))}else addHist(o,'Dados editados');
+    if(!t){o.id=safeId(o.cod)+(S.tools.has(safeId(o.cod))?'-'+uid().slice(-4):'');if(o._toMaq){o.est='maquina';o.maq=o._toMaqName||'';o.maqDesde=nowIso();delete o.pos;addHist(o,'Entrada direta na máquina'+(o.maq?' '+o.maq:'')+' (sem posição)')}else{o.est='armazem';addHist(o,'Entrada no armazém'+(o.pos?' em '+o.pos:''))}}else addHist(o,'Dados editados');
     if(o.pos&&!S.positions[o.pos])registerPositions({[o.pos]:{l:o.local||''}});
-    if(await saveTools([o])){toast(t?'Alterações guardadas.':'Ferramenta registada.');openTool(o.id);if(onSaved)onSaved(o)}
+    delete o._toMaq;delete o._toMaqName;if(await saveTools([o])){toast(t?'Alterações guardadas.':(o.est==='maquina'?'Ferramenta registada e enviada à máquina.':'Ferramenta registada.'));openTool(o.id);if(onSaved)onSaved(o)}
   };
+  $('#nfSave').onclick=()=>doSave();
+  $('#nfSaveMaq')&&($('#nfSaveMaq').onclick=async()=>{const ms=machines();const m=await askMachine(ms);if(m===null)return;doSave(m)});
 }
 $('#newTool').onclick=()=>openToolForm(null);
 async function registerPositions(map){if(!S.db||!S.canWrite||!Object.keys(map).length)return;Object.assign(S.positions,map);try{await serial('config/positions',()=>S.posV?S.db.doc('config/positions').update({items:map}):S.db.doc('config/positions').set({items:{...S.positions}}));S.posV=true}catch(e){toast(dbErr(e),1)}}
@@ -621,8 +667,9 @@ document.addEventListener('paste',e=>{
   const t=e.clipboardData?.getData('text');if(t&&t.trim()){e.preventDefault();handleOrderInput('text',t,'texto colado do SAP')}
 });
 const OEST=['Encomendado','Recebido parcial','Recebido','Cancelado'];const oCls={Encomendado:'p-enc','Recebido parcial':'p-par',Recebido:'p-rec',Cancelado:'p-can'};
-function filteredOrders(){const q=norm($('#oq').value),e=$('#oEst').value;return S.orders.filter(o=>(!e||o.estado===e)&&(!q||norm([o.num,o.forn,o.origem,...(o.linhas||[]).flatMap(l=>[l.mat,l.desc,l.cod])].join(' ')).includes(q))).sort((a,b)=>String(b.data||b.criado).localeCompare(String(a.data||a.criado)))}
+function filteredOrders(){const q=norm($('#oq').value),es=[...document.querySelectorAll('#oEst input:checked')].map(c=>c.value);return S.orders.filter(o=>(!es.length||es.includes(o.estado))&&(!q||norm([o.num,o.forn,o.origem,...(o.linhas||[]).flatMap(l=>[l.mat,l.desc,l.cod])].join(' ')).includes(q))).sort((a,b)=>String(b.data||b.criado).localeCompare(String(a.data||a.criado)))}
 function renderOrders(){
+  if(!$('#oEst').dataset.b){$('#oEst').dataset.b='1';$('#oEst').addEventListener('change',renderOrders)}
   const a=filteredOrders();
   $('#ordRows').innerHTML=!S.loaded.orders?`<tr><td colspan="7" class="empty">${S.db?'A carregar pedidos…':'Sem ligação à base de dados.'}</td></tr>`:a.length?a.map(o=>{const open=UI.openOrder===o._id;return `<tr class="click" data-ord="${esc(o._id)}"><td class="code">${esc(o.num)}</td><td class="mono small">${fmtD(o.data)}</td><td>${esc(o.forn||'')}</td><td class="num">${recBadge(o)}</td><td class="small muted">${esc(o.origem||'')}</td><td><span class="pill ${oCls[o.estado]||'p-enc'}">${esc(o.estado||'Encomendado')}</span></td><td>${open?'▾':'▸'}</td></tr>`+(open?`<tr><td colspan="7" style="background:var(--surface-2)">${orderDetail(o)}</td></tr>`:'')}).join(''):`<tr><td colspan="7" class="empty">${S.orders.length?'Nenhum pedido corresponde à pesquisa.':'Ainda não há pedidos. Arrasta um Excel, PDF ou print do SAP para a área acima.'}</td></tr>`;
 }
@@ -777,7 +824,7 @@ function refreshQualConfig(){
 }
 function renderChecklist(){
   const g=CL().groups;
-  $('#qList').innerHTML=g.map((gr,gi)=>`<div class="cl-group"><h4><span class="n">${gi+1}.</span> ${esc(gr.name)}</h4>${gr.items.map((it,ii)=>{const k=gi+'.'+ii,a=Q.ans[k]||{};return `<div class="cl-item" data-k="${k}"><span>${esc(it)}</span><div class="tri" role="group" aria-label="${esc(it)}"><button class="o" aria-pressed="${a.r==='OK'}" data-r="OK">OK</button><button class="n" aria-pressed="${a.r==='NOK'}" data-r="NOK">NOK</button><button class="a" aria-pressed="${a.r==='NA'}" data-r="NA">N/A</button></div>${a.r==='NOK'?`<input class="cmt" type="text" data-c="${k}" value="${esc(a.c||'')}" placeholder="Descreve o problema (obrigatório)">`:''}</div>`}).join('')}</div>`).join('');
+  $('#qList').innerHTML=g.map((gr,gi)=>`<div class="cl-group"><h4><span class="n">${gi+1}.</span> ${esc(gr.name)}</h4>${gr.items.map((it,ii)=>{const k=gi+'.'+ii,a=Q.ans[k]||{};return `<div class="cl-item" data-k="${k}"><span>${esc(it)}</span><div class="tri" role="group" aria-label="${esc(it)}"><button class="o" aria-pressed="${a.r==='OK'}" data-r="OK">OK</button><button class="n" aria-pressed="${a.r==='NOK'}" data-r="NOK">NOK</button><button class="a" aria-pressed="${a.r==='NA'}" data-r="NA">N/A</button><button class="apm" aria-pressed="${a.r==='APM'}" data-r="APM" title="A preparar na máquina">APM</button></div>${a.r==='NOK'?`<input class="cmt" type="text" data-c="${k}" value="${esc(a.c||'')}" placeholder="Descreve o problema (obrigatório)">`:''}</div>`}).join('')}</div>`).join('');
   verdict();
 }
 function verdict(){
@@ -793,7 +840,9 @@ function renderToolInfo(){
   const t=Q.tool||[...S.tools.values()].find(x=>x.cod===$('#qCod').value.trim().toUpperCase()&&x.est!=='sucatado');
   if(t&&!Q.tool)Q.tool=t;
   const last=t?S.insp.find(i=>i.toolId===t.id||i.cod===t.cod):null;
-  $('#qTool').innerHTML=t?`<b class="mono">${esc(t.cod)}</b> · posição <b class="mono">${esc(t.pos||'—')}</b> · ${esc(t.cli||'')} · ${estPill(t)}${last?` · última verificação ${fmtD(last.data)} <span class="pill ${last.res==='OK'?'p-ok':'p-nok'}">${last.res}</span>`:''}`:'';
+  const _mq=$('#qMaq')?$('#qMaq').value:'';const _pp=(t&&_mq)?(t.param||{})[_mq]:null;
+  const _parm=(t&&_mq)?('<div class="sugg" style="margin-bottom:8px">Parâmetros ideais na <b>'+esc(_mq)+'</b>: '+(_pp?('pressão <b class="mono">'+esc(_pp.p||'—')+'</b> · velocidade <b class="mono">'+esc(_pp.v||'—')+'</b>'+(_pp.n?' · '+esc(_pp.n):'')):'ainda sem parâmetros guardados para esta máquina')+'</div>'):'';
+  $('#qTool').innerHTML=_parm+(t?`<b class="mono">${esc(t.cod)}</b> · posição <b class="mono">${esc(t.pos||'—')}</b> · ${esc(t.cli||'')} · ${estPill(t)}${last?` · última verificação ${fmtD(last.data)} <span class="pill ${last.res==='OK'?'p-ok':'p-nok'}">${last.res}</span>`:''}`:'');
 }
 function collect(){
   const g=CL().groups,v=verdict();const cod=$('#qCod').value.trim().toUpperCase();
@@ -813,21 +862,33 @@ $('#qSave').onclick=async()=>{
   try{const ref=S.db.collection('inspections').doc(safeId(c.data+'_'+c.cod+'_'+uid()));await ref.set(doc);
     if(rep){const t=S.tools.get(c.toolId);if(t){const n={...t,est:'reparacao',repDesde:today(),repMot:c.itens.filter(i=>i.r==='NOK').map(i=>i.g+': '+i.t+(i.c?' ('+i.c+')':'')).join('; '),repOrig:'Verificação PCM'+(c.maq?' · '+c.maq:'')};addHist(n,'Enviado para reparação (verificação NOK: '+c.itens.filter(i=>i.r==='NOK').map(i=>i.t).join('; ')+')');await saveTools([n])}}
     else if(c.toolId){const t=S.tools.get(c.toolId);if(t){const n={...t};
-      if(c.res==='OK'){n.est='maquina';n.maq=c.maq;n.maqDesde=nowIso();n.arrDesde='';n.arrRes='';addHist(n,`Verificação PCM OK por ${c.op} · saiu do armazém para a máquina ${c.maq}`)}
+      if(c.res==='OK'){n.est='maquina';n.maq=c.maq;n.maqDesde=nowIso();n.arrDesde='';n.arrRes='';delete n.ckEnt;delete n.maqPrep;addHist(n,`Verificação PCM OK por ${c.op} · saiu do armazém para a máquina ${c.maq}`)}
       else addHist(n,`Verificação PCM NOK por ${c.op} (${c.maq}) · não seguiu para a máquina`);await saveTools([n])}}
     toast(rep?'Verificação guardada e cortante enviado para reparação.':c.res==='OK'?`Verificação guardada · ${c.cod} na máquina ${c.maq}.`:'Verificação guardada · reprovado, fica no armazém.');
     lastSaved=doc;$('#qSave').textContent='Guardado ✓';setTimeout(()=>$('#qSave').textContent='Guardar e imprimir',2500);
     ckDone('q');await inspPdf(doc,true);
   }catch(e){toast(dbErr(e),1)}
 };
+$('#qSaveParcial')&&($('#qSaveParcial').onclick=async()=>{
+  const c=collect();
+  if(!c.cod){toast('Indica o código do cortante.',1);$('#qCod').focus();return}
+  if(!c.maq){toast('Escolhe a máquina de destino.',1);$('#qMaq').focus();return}
+  if(!c.toolId){toast('Este cortante não está no armazém.',1);return}
+  if(!needDb())return;
+  const t=S.tools.get(c.toolId);if(!t)return;
+  const n={...t,est:'arrumar',arrDesde:t.arrDesde||nowIso(),maqPrep:c.maq,
+    ckEnt:{maq:c.maq,op:c.op,ans:Q.ans,done:c.v.done,tot:c.v.tot,ts:nowIso()}};
+  addHist(n,`Checklist de entrada guardada (${c.v.done}/${c.v.tot}) · prep. para ${c.maq}`);
+  if(await saveTools([n])){toast(`Progresso guardado: ${c.v.done}/${c.v.tot}. Fica no Pré-corte, em preparação para ${c.maq}.`);ckDone('q')}
+});
 let lastSaved=null;
 async function inspPdf(d,print){
   try{const saida=d.kind==='saida';const doc=await newPdf(saida?'Saída de máquina – verificação do cortante':'Verificação de cortante – PCM',`Cortante ${d.cod} · ${fmtD(d.data)}`);
   const t=S.tools.get(d.toolId)||[...S.tools.values()].find(x=>x.cod===d.cod);
   doc.autoTable({body:[['Cortante',d.cod,'Máquina',d.maq||''],['Data',fmtD(d.data),'Operador',d.op||''],['Posição',t?.pos||'','Cliente',t?.cli||''],['Resultado',d.res==='OK'?'APROVADO':'REPROVADO','Registo',d.ts?fmtDT(d.ts):''],...(saida?[['Folhas cortadas',fmtN(d.folhas),'Vida acumulada',fmtN(d.total)+' / '+fmtN(vidaMax())]]:[])],startY:29,theme:'grid',styles:{fontSize:9,cellPadding:2,lineColor:[217,226,220]},columnStyles:{0:{fontStyle:'bold',fillColor:[238,242,239],cellWidth:28},2:{fontStyle:'bold',fillColor:[238,242,239],cellWidth:28}},margin:{left:14,right:14},didParseCell:x=>{if(x.row.index===3&&x.column.index===1){x.cell.styles.textColor=d.res==='OK'?[31,138,76]:[192,57,43];x.cell.styles.fontStyle='bold'}}});
-  pdfTable(doc,['Grupo','Ponto de verificação','Resultado','Comentário'],d.itens.map(i=>[i.g,i.t,i.r==='NA'?'N/A':i.r,i.c||'']),doc.lastAutoTable.finalY+6,{columnStyles:{0:{cellWidth:34},2:{cellWidth:22,halign:'center',fontStyle:'bold'}},didParseCell:x=>{if(x.section==='body'&&x.column.index===2){x.cell.styles.textColor=x.cell.raw==='OK'?[31,138,76]:x.cell.raw==='NOK'?[192,57,43]:[120,120,120]}}});
+  pdfTable(doc,['Grupo','Ponto de verificação','Resultado','Comentário'],d.itens.map(i=>[i.g,i.t,i.r==='NA'?'N/A':i.r==='APM'?'APM':i.r,i.c||'']),doc.lastAutoTable.finalY+6,{columnStyles:{0:{cellWidth:34},2:{cellWidth:22,halign:'center',fontStyle:'bold'}},didParseCell:x=>{if(x.section==='body'&&x.column.index===2){x.cell.styles.textColor=x.cell.raw==='OK'?[31,138,76]:x.cell.raw==='NOK'?[192,57,43]:[120,120,120]}}});
   let y=doc.lastAutoTable.finalY+8;if(d.obs){doc.setFontSize(9);doc.setTextColor(60);doc.text('Observações: '+d.obs,14,y,{maxWidth:180});y+=12}
-  doc.setDrawColor(150);doc.line(14,y+14,90,y+14);doc.line(120,y+14,196,y+14);doc.setFontSize(8);doc.setTextColor(110);doc.text('Operador',14,y+18);doc.text(saida?'Chefe de turno':'Responsável PCV',120,y+18);
+  if(saida){doc.setDrawColor(150);doc.line(14,y+14,90,y+14);doc.line(120,y+14,196,y+14);doc.setFontSize(8);doc.setTextColor(110);doc.text('Operador',14,y+18);doc.text('Chefe de turno',120,y+18);}
   pdfFooter(doc);const fn=`${saida?'Saida':'Verificacao'}_${d.cod}_${d.data}.pdf`;if(print)await printPdf(doc,fn);else await saveFile(fn,doc.output('arraybuffer'))}catch(e){toast(e.message,1)}
 }
 $('#qPdf').onclick=()=>{const c=collect();if(!c.cod){toast('Indica o código do cortante.',1);return}inspPdf({...c,ts:lastSaved?.cod===c.cod?lastSaved.ts:''},true)};
@@ -872,3 +933,57 @@ $('#edAddG').onclick=()=>{$('#edGroups').dataset.dirty='1';edState.push({name:'N
 async function saveCl(patch){if(!needDb())return;const body={...(S.cl||{}),groups:CL().groups,machines:machines(),operadores:operadores(),ncTo:ncTo(),vidaMax:vidaMax(),...patch,upd:nowIso(),by:S.me||''};try{await serial('config/checklist',()=>S.db.doc('config/checklist').set(body));toast('Guardado.');return true}catch(e){toast(dbErr(e),1)}}
 $('#edSave').onclick=async()=>{const g=edState.map(x=>({name:x.name.trim(),items:x.items.map(s=>s.trim()).filter(Boolean)})).filter(x=>x.name&&x.items.length);if(!g.length){toast('A checklist precisa de pelo menos um grupo com pontos.',1);return}if(await saveCl({groups:g})){delete $('#edGroups').dataset.dirty;Q.ans={};delete $('#qList').dataset.dirty}};
 
+
+/* escolher máquina numa mini-janela (para registar direto na máquina sem posição) — v34 */
+function askMachine(ms){
+  return new Promise(res=>{
+    const ov=document.createElement('div');ov.className='ckmodal';ov.style.zIndex='90';
+    ov.innerHTML=`<div class="ckbox" style="max-width:420px"><div class="ckhead"><div class="grow"><h3>Enviar para a máquina</h3><p class="small muted">O cortante fica na máquina, sem posição no armazém. Depois, ao regressar, é arrumado.</p></div></div>
+      <label class="f"><span>Máquina</span><select id="amSel"><option value="">Escolher…</option>${ms.map(m=>`<option>${esc(m)}</option>`).join('')}</select></label>
+      <div class="row" style="margin-top:12px"><button class="btn pri" id="amOk">Enviar à máquina</button><button class="btn" id="amNo">Cancelar</button></div></div>`;
+    document.body.append(ov);const sel=ov.querySelector('#amSel');sel.focus();
+    const close=v=>{ov.remove();res(v)};
+    ov.querySelector('#amOk').onclick=()=>{const m=sel.value.trim();if(!m){sel.focus();return}close(m)};
+    ov.querySelector('#amNo').onclick=()=>close(null);
+    ov.addEventListener('click',e=>{if(e.target===ov)close(null)});
+  });
+}
+
+/* ============ Agente de pesquisa local (v37) — responde a perguntas sobre os dados, sem internet ============ */
+function agentAnswer(qraw){
+  const q=norm(qraw||'').trim();if(!q)return null;
+  const tools=[...S.tools.values()].filter(t=>t.est!=='sucatado');
+  const esc2=esc,link=t=>`<a class="agent-tool" data-agtool="${esc2(t.id)}"><b class="mono">${esc2(t.cod)}</b></a>`;
+  const estTxt=t=>({armazem:'em armazém'+(t.pos?' · '+t.pos:''),maquina:'na máquina '+(t.maq||''),arrumar:'no pré-corte',reparacao:'em reparação'}[t.est]||t.est);
+  // código explícito?
+  const codeM=qraw.toUpperCase().match(/[STM]\s?\d{3,4}\s?[A-Z]/);
+  if(codeM){const c=codeM[0].replace(/\s/g,'');const hit=tools.filter(t=>toolKeys(t).includes(c.replace(/^(.)0*/,'$1'))||norm(t.cod).includes(norm(c)));
+    if(hit.length)return {title:`${hit.length} resultado(s) para ${c}`,html:hit.slice(0,20).map(t=>`<div class="agent-row">${link(t)} — ${esc2(t.cli||t.den||'')} · <b>${estTxt(t)}</b></div>`).join('')};
+    return {title:`Nada encontrado para ${c}`,html:'<div class="agent-row muted">Nenhum cortante com esse código.</div>'};}
+  // intenções
+  const has=(...w)=>w.some(x=>q.includes(x));
+  // máquina específica
+  const mq=machines().find(m=>q.includes(norm(m)));
+  if(mq&&has('maquina','maq',norm(mq))){const l=tools.filter(t=>t.est==='maquina'&&norm(t.maq)===norm(mq));
+    return {title:`${l.length} cortante(s) na máquina ${mq}`,html:l.length?l.map(t=>`<div class="agent-row">${link(t)} — ${esc2(t.cli||'')} ${t.maqDesde?'· desde '+fmtD(t.maqDesde):''}</div>`).join(''):'<div class="agent-row muted">Nenhum cortante nesta máquina.</div>'};}
+  if(has('na maquina','nas maquinas','em maquina','na máquina')){const l=tools.filter(t=>t.est==='maquina');
+    return {title:`${l.length} cortante(s) nas máquinas`,html:l.slice(0,40).map(t=>`<div class="agent-row">${link(t)} — ${esc2(t.maq||'')} · ${esc2(t.cli||'')}</div>`).join('')};}
+  if(has('braille')){const l=tools.filter(t=>accOf(t,'braille'));return {title:`${l.length} cortante(s) com Braille`,html:l.slice(0,40).map(t=>`<div class="agent-row">${link(t)} — ${esc2(t.cli||'')} · ${estTxt(t)}</div>`).join('')};}
+  if(has('relevo')){const l=tools.filter(t=>accOf(t,'relevo'));return {title:`${l.length} cortante(s) com relevo`,html:l.slice(0,40).map(t=>`<div class="agent-row">${link(t)} — ${esc2(t.cli||'')} · ${estTxt(t)}</div>`).join('')};}
+  if(has('reparacao','reparação','famag','avaria')){const l=tools.filter(t=>t.est==='reparacao');return {title:`${l.length} cortante(s) em reparação`,html:l.length?l.map(t=>`<div class="agent-row">${link(t)} — ${esc2(t.repMot||'')}</div>`).join(''):'<div class="agent-row muted">Nada em reparação.</div>'};}
+  if(has('pre-corte','pré-corte','precorte','por arrumar','pre corte')){const l=tools.filter(t=>t.est==='arrumar');return {title:`${l.length} no pré-corte e vinco`,html:l.length?l.map(t=>`<div class="agent-row">${link(t)} ${t.ckEnt?'· <b style="color:var(--info)">em preparação '+t.ckEnt.done+'/'+t.ckEnt.tot+'</b>':''}</div>`).join(''):'<div class="agent-row muted">Nada por arrumar.</div>'};}
+  if(has('por receber','a receber','encomend','pedido')){const open=(S.orders||[]).filter(o=>o.estado==='Encomendado'||o.estado==='Recebido parcial');
+    const linhas=open.flatMap(o=>(o.linhas||[]).filter(l=>!l.rec).map(l=>({o,l})));
+    return {title:`${linhas.length} linha(s) por receber em ${open.length} pedido(s)`,html:linhas.slice(0,40).map(({o,l})=>`<div class="agent-row"><b class="mono">${esc2(o.num)}</b> — ${esc2(l.cod||l.mat||'')} ${esc2((l.desc||'').slice(0,40))}</div>`).join('')||'<div class="agent-row muted">Nada por receber.</div>'};}
+  if(has('livre','vaga','posicao livre','posições livres','vazia')){const free=freePositions();return {title:`${free.length} posições livres`,html:`<div class="agent-row">Primeiras: <b class="mono">${free.slice(0,30).map(([p])=>p).join(', ')}</b></div>`};}
+  if(has('conjunto')){const l=tools.filter(t=>nPecas(t)>1);return {title:`${l.length} conjunto(s) de ferramentas`,html:l.slice(0,40).map(t=>`<div class="agent-row">${link(t)} — ${nPecas(t)} peças · ${estTxt(t)}</div>`).join('')};}
+  // cliente?
+  const byCli=tools.filter(t=>norm(t.cli||'').includes(q)&&q.length>=3);
+  if(byCli.length)return {title:`${byCli.length} cortante(s) do cliente "${esc2(qraw)}"`,html:byCli.slice(0,30).map(t=>`<div class="agent-row">${link(t)} — ${estTxt(t)}</div>`).join('')};
+  // procura livre (código, denominação, posição)
+  const free=tools.filter(t=>norm([t.cod,t.pos,t.cli,t.den,t.mat].join(' ')).includes(q)).slice(0,20);
+  if(free.length)return {title:`${free.length} resultado(s)`,html:free.map(t=>`<div class="agent-row">${link(t)} — ${esc2(t.cli||t.den||'')} · ${estTxt(t)}</div>`).join('')};
+  return {title:'Sem resultados',html:'<div class="agent-row muted">Experimenta: um código (S2664), "na máquina B145", "por receber", "com Braille", um cliente, ou uma posição.</div>'};
+}
+function runAgent(){const q=$('#agentQ').value;const out=$('#agentOut');const r=agentAnswer(q);
+  if(!r){out.hidden=true;return}out.hidden=false;out.innerHTML=`<div class="agent-title">${esc(r.title)}</div>${r.html}`;}

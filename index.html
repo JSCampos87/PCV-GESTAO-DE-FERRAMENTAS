@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="css/app.css">
 <script src="js/vendor/xlsx.full.min.js"></script>
-<script>window.PCV_VENDOR='js/vendor/';window.PCV_VERSAO='32 · 23/10/2026';</script>
+<script>window.PCV_VENDOR='js/vendor/';window.PCV_VERSAO='37 · 12/11/2026';</script>
 <script src="config.js"></script>
 <script src="js/store.js"></script>
 </head>
@@ -42,6 +42,7 @@
     </div>
   </div>
   <div class="fsums homeflow" id="homeFlow" data-go="fluxo" title="Abrir o fluxo das ferramentas"></div>
+  <div class="agentbox" data-min="PCV"><div class="agent-in"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 L21 21"/></svg><input type="search" id="agentQ" placeholder="Pergunta à app: onde está o S2664 · pedidos por receber · cortantes na B145 · o que tem Braille…" autocomplete="off"><button class="btn sm" id="agentGo">Procurar</button></div><div class="agent-chips" id="agentChips"></div><div class="agent-out" id="agentOut" hidden></div></div>
   <div class="hero" data-min="PCV">
     <div class="txt">
       <span class="eyebrow">Hinojosa · Setor PCV</span>
@@ -78,7 +79,7 @@
     <div class="r3card" id="r3card">
       <div class="r3bar"><b>Vista 3D das racks</b><span class="small muted" id="r3info">Procura um cortante para o ver a amarelo</span><span class="grow"></span><button class="btn sm" id="r3reset" title="Repor a vista">Centrar</button><button class="btn sm" id="r3big" title="Ampliar">Ampliar</button></div>
       <div class="r3view" id="r3view"><p class="small muted" style="padding:12px">A carregar a vista 3D…</p></div>
-      <div class="r3leg small muted">Arrasta para rodar · roda do rato para aproximar · Shift + arrastar para deslocar · 3 níveis: R/C, piso 1, piso 2</div>
+      <div class="r3leg small muted">Arrasta para rodar · roda do rato para aproximar · Shift + arrastar para deslocar · racks com os andares reais (R/C, 1º a 5º)</div>
     </div>
   </div>
   <div class="tabs" role="tablist" data-tabs="arm">
@@ -137,7 +138,7 @@
     <div id="ordPrev"></div>
     <div class="grid-f">
       <label class="f" style="grid-column:span 2"><span>Pesquisa</span><input type="search" id="oq" placeholder="Nº pedido, fornecedor, material, descrição…" autocomplete="off"></label>
-      <label class="f"><span>Estado</span><select id="oEst"><option value="">Todos</option><option>Encomendado</option><option>Recebido parcial</option><option>Recebido</option><option>Cancelado</option></select></label>
+      <div class="f"><span>Estado</span><div class="estfilter" id="oEst"><label><input type="checkbox" value="Encomendado">Encomendado</label><label><input type="checkbox" value="Recebido parcial">Recebido parcial</label><label><input type="checkbox" value="Recebido">Recebido</label><label><input type="checkbox" value="Cancelado">Cancelado</label></div></div>
     </div>
     <div class="tw"><table class="t"><thead><tr><th>Nº pedido</th><th>Data</th><th>Fornecedor</th><th>Recebidas</th><th>Origem</th><th>Estado</th><th></th></tr></thead><tbody id="ordRows"></tbody></table></div>
   </div>
@@ -176,7 +177,7 @@
     <label class="f"><span>Observações gerais</span><textarea id="qObs" placeholder="Opcional"></textarea></label>
     <div id="qVerdict"></div>
     <label class="row small" id="qRepWrap" hidden style="gap:6px"><input type="checkbox" id="qRep" checked> Enviar cortante para reparação no armazém</label>
-    <div class="row"><button class="btn pri w-only" id="qSave">Guardar e imprimir</button><button class="btn" id="qPdf">Só imprimir / PDF</button><button class="btn" id="qReset">Limpar</button></div>
+    <div class="row"><button class="btn w-only" id="qSaveParcial">Guardar progresso</button><button class="btn pri w-only" id="qSave">Guardar e imprimir</button><button class="btn" id="qPdf">Só imprimir / PDF</button><button class="btn" id="qReset">Limpar</button></div>
   </div>
   <div data-pane="hist" class="stack" hidden>
     <div class="row"><label class="f grow"><span>Pesquisa</span><input type="search" id="hq" placeholder="Cortante, máquina, operador…"></label>
@@ -200,6 +201,7 @@
   <div class="tabs" role="tablist" data-tabs="op">
     <button role="tab" data-sub="nova">Registo de saída</button>
     <button role="tab" data-sub="hist">Histórico</button>
+    <button role="tab" data-sub="param">Parâmetros por máquina</button>
     <button role="tab" data-sub="kpi" data-min="PCV">KPIs</button>
   </div>
   <div data-pane="nova" class="stack">
@@ -217,7 +219,11 @@
     <label class="row small" id="xRepWrap" hidden style="gap:6px"><input type="checkbox" id="xRep" checked> Enviar cortante para reparação no armazém</label>
     <div class="row"><button class="btn pri w-only" id="xSave">Guardar e imprimir</button><button class="btn" id="xPdf">Imprimir / PDF</button><button class="btn" id="xReset">Limpar</button></div>
   </div>
-  <div data-pane="hist" class="stack" hidden>
+  <div data-pane="param" class="stack" hidden>
+    <div class="panel"><div class="row"><label class="f grow"><span>Máquina</span><select id="opParMaq"></select></label></div>
+    <p class="small muted" style="margin:.2rem 0 0">Parâmetros ideais (pressão / velocidade) guardados para os cortantes nesta máquina. Definidos pelo PCV na ficha do cortante.</p>
+    <div id="opParList"></div></div>
+<div data-pane="hist" class="stack" hidden>
     <div class="row"><label class="f grow"><span>Pesquisa</span><input type="search" id="xq" placeholder="Cortante, máquina, operador…"></label>
       <label class="f"><span>Resultado</span><select id="xRes"><option value="">Todos</option><option>OK</option><option>NOK</option></select></label>
       <button class="btn sm" id="xXls" data-min="SUPV" style="margin-top:18px">Exportar Excel</button></div>
@@ -338,6 +344,7 @@
 </section>
 </main>
 <div class="ov" id="ov" hidden><div class="drawer" id="drawer" role="dialog" aria-modal="true"></div></div>
+<script src="js/rackmap.js"></script>
 <script src="js/rack3d.js"></script>
 <script src="js/app.js"></script>
 <script src="js/ops.js"></script>

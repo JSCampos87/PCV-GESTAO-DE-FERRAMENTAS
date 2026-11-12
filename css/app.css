@@ -103,7 +103,7 @@ label.f>span{letter-spacing:.02em}
 .fsum b{font:700 22px/1 var(--f-mono)}.fsum span{font-size:13px}
 .fsum.zA{background:var(--ok-soft);color:var(--ok);border-color:#bfe3cd}.fsum.zP{background:#fff3cf;color:#7a5600;border-color:#f0d58a}.fsum.zM{background:var(--info-soft);color:var(--info);border-color:#c5dbf2}.fsum.zF{background:var(--warn-soft);color:var(--warn);border-color:#f2d7a8}.fsum.zE{color:var(--muted)}
 .fhint{margin:4px 0 10px;min-height:1.4em}
-.fmap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);grid-template-areas:"pcv pcv famag" "arm tri maq";gap:16px;align-items:start}
+.fmap{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);grid-template-areas:"pcv famag" "arm tri" "maq maq";gap:16px;align-items:start}
 .fzone{border:2px solid var(--line);border-radius:22px;padding:12px;background:var(--surface);display:flex;flex-direction:column;gap:8px;min-height:180px;transition:box-shadow .15s,border-color .15s}
 .fzone header{display:flex;gap:10px;align-items:center}.fzone h3{font-size:17px;margin:0}.fzone header p{margin:0;font-size:12px;color:var(--muted)}
 .fdot{display:grid;place-items:center;min-width:54px;height:54px;padding:0 8px;border-radius:27px;font:700 19px/1 var(--f-mono);color:#fff}
@@ -117,7 +117,7 @@ label.f>span{letter-spacing:.02em}
 .fcard b{font-size:14px;color:var(--brand-ink)}.fcard span{font-size:11px;color:var(--ink);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.fcard small{font-size:11px;color:var(--muted)}
 .fcard.line{border-style:dashed}.fcard.sel{outline:3px solid var(--brand);outline-offset:1px}.fcard.drag{opacity:.5}
 .fempty{font-size:12px;color:var(--muted);margin:4px}
-.fmaqs{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
+.fzM{grid-area:maq}.fmaqs{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
 .fmaq{border:1px dashed #c5dbf2;border-radius:14px;padding:8px;background:#fff;display:flex;flex-direction:column;gap:6px;min-height:80px}
 .fmaq .fcard{width:auto}
 .fdrop{box-shadow:0 0 0 4px rgba(59,124,196,.35)!important;border-color:var(--info)!important}
@@ -227,6 +227,7 @@ table.t{border-collapse:collapse;width:100%;font-size:13px}
 .tri button[aria-pressed="true"].o{background:var(--ok);color:#fff}
 .tri button[aria-pressed="true"].n{background:var(--nok);color:#fff}
 .tri button[aria-pressed="true"].a{background:var(--muted);color:var(--bg)}
+.tri button[aria-pressed="true"].apm{background:var(--info,#2f6fb5);color:#fff}
 .verdict{display:flex;gap:12px;align-items:center;padding:12px 14px;border-radius:var(--r);font-weight:600}
 .verdict.ok{background:var(--ok-soft);color:var(--ok)}.verdict.nok{background:var(--nok-soft);color:var(--nok)}.verdict.pend{background:var(--surface-2);color:var(--muted)}
 .ed-item{display:flex;gap:6px;margin:6px 0}
@@ -301,3 +302,27 @@ body.ck-open{overflow:hidden}
 .xom{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line)}.xom>span{flex:1;display:flex;flex-direction:column;min-width:0}.xom small{color:var(--muted,#6b7a71);font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #xOnMaq{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
 .pqres{display:flex;flex-direction:column;gap:2px;margin-top:4px;max-height:260px;overflow:auto}.pqi{display:flex;align-items:center;gap:8px;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:5px 8px;cursor:pointer;font-size:12.5px}.pqi:hover{background:var(--brand-soft)}.pqi svg{flex:none}
+
+.fcard.prep{border-color:var(--info,#2f6fb5);background:#eef5fc;box-shadow:inset 3px 0 0 var(--info,#2f6fb5)}
+.fcard.prep .prepbadge{display:inline-block;margin-top:3px;font-size:10.5px;font-weight:700;color:var(--info,#2f6fb5)}
+/* filtro múltiplo de estado (Compras) */
+.estfilter{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;min-height:38px}
+.estfilter label{display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:500;cursor:pointer}
+.estfilter input{margin:0}
+/* logo FAMAG na zona de reparação */
+.famag-logo{height:26px;width:auto;display:block;margin:2px 0 1px}
+/* janela do agente na página inicial */
+.agentbox{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:0 0 14px;box-shadow:0 2px 10px rgba(0,0,0,.04)}
+.agent-in{display:flex;align-items:center;gap:10px}
+.agent-in svg{color:var(--brand,#2f6fb5);flex:none}
+.agent-in input{flex:1;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;background:var(--bg)}
+.agent-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.agent-chip{border:1px solid var(--line);background:var(--surface-2,#f5f9f6);border-radius:999px;padding:5px 12px;font-size:12.5px;cursor:pointer;color:var(--ink)}
+.agent-chip:hover{border-color:var(--ok);color:var(--ok)}
+.agent-out{margin-top:12px;border-top:1px solid var(--line);padding-top:10px;max-height:340px;overflow:auto}
+.agent-title{font-weight:700;font-size:13px;color:var(--muted);margin-bottom:6px}
+.agent-row{padding:5px 0;font-size:13.5px;border-bottom:1px solid var(--line)}
+.agent-row:last-child{border-bottom:0}
+.agent-row.muted{color:var(--muted)}
+.agent-tool{cursor:pointer;color:var(--ok);text-decoration:none}
+.agent-tool:hover{text-decoration:underline}
