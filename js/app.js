@@ -96,6 +96,7 @@ async function initDb(){
   db.doc('config/checklist').onSnapshot(d=>{S.cl=d.exists?d.data():null;S.clExists=d.exists;refreshQualConfig()},()=>{});
   db.doc('config/pdfmail').onSnapshot(d=>{S.pdfMail=d.exists?d.data():null;if(typeof renderPdfIdx==='function')renderPdfIdx()},()=>{});
   db.doc('config/mailsync').onSnapshot(d=>{S.mailsync=d.exists?d.data():null;if(typeof renderMailBox==='function')renderMailBox()},()=>{});
+  db.doc('config/fampipe').onSnapshot(d=>{S.fampipe=d.exists?d.data():null;if(UI.view==='famag'&&typeof renderFamag==='function')renderFamag()},()=>{});
   db.doc('config/pdfcont').onSnapshot(d=>{S.pdfcont=d.exists?d.data():null;S.pdfMap=null;refreshAll()},()=>{});
   db.doc('config/pdfidx').onSnapshot(d=>{S.pdfidx=d.exists?d.data():null;S.pdfMap=null;refreshAll();if(typeof renderPdfIdx==='function')renderPdfIdx()},()=>{});
   db.doc('config/links').onSnapshot(d=>{S.links=d.exists?d.data():{};S.linksV=d.exists;[['#lnkC','cortante'],['#lnkB','braille'],['#lnkR','relevo']].forEach(([s,k])=>{if(document.activeElement!==$(s))$(s).value=S.links[k]||''});refreshAll()},()=>{});
@@ -160,7 +161,7 @@ function findHeader(rows,tests,minHits){
 }
 
 /* ============ navegação ============ */
-const UI={view:'inicio',arm:'lista',qual:'nova',comp:'ped',op:'nova',acc:'',page:0,hl:'',openOrder:null};
+const UI={view:'inicio',arm:'lista',qual:'nova',comp:'ped',op:'nova',fmg:'novos',acc:'',page:0,hl:'',openOrder:null};
 function go(v,sub){
   UI.view=v;$$('.view').forEach(s=>s.hidden=s.id!=='v-'+v);
   $$('nav.main button').forEach(b=>b.setAttribute('aria-current',b.dataset.go===v));
@@ -170,11 +171,11 @@ function go(v,sub){
 }
 function syncTabs(){
   const set=(key,cur,sec)=>{$$(`[data-tabs="${key}"] [data-sub]`).forEach(b=>b.setAttribute('aria-selected',b.dataset.sub===cur));$$('#'+sec+' [data-pane]').forEach(p=>p.hidden=p.dataset.pane!==cur)};
-  set('arm',UI.arm,'v-armazem');set('qual',UI.qual,'v-qualidade');set('comp',UI.comp,'v-pedidos');set('op',UI.op,'v-operador');if(UI.def)set('def',UI.def,'v-def');$$('[data-show]').forEach(el=>el.hidden=el.dataset.show!==UI.comp);
+  set('arm',UI.arm,'v-armazem');set('qual',UI.qual,'v-qualidade');set('comp',UI.comp,'v-pedidos');set('op',UI.op,'v-operador');set('fmg',UI.fmg,'v-famag');if(UI.def)set('def',UI.def,'v-def');$$('[data-show]').forEach(el=>el.hidden=el.dataset.show!==UI.comp);
 }
 document.addEventListener('click',e=>{
   const g=e.target.closest('[data-go]');if(g){go(g.dataset.go);return}
-  const t=e.target.closest('[data-sub]');if(t){const k=t.closest('[data-tabs]').dataset.tabs;if(k==='arm')UI.arm=t.dataset.sub;else if(k==='comp')UI.comp=t.dataset.sub;else if(k==='op')UI.op=t.dataset.sub;else if(k==='def')UI.def=t.dataset.sub;else UI.qual=t.dataset.sub;syncTabs();refreshAll()}
+  const t=e.target.closest('[data-sub]');if(t){const k=t.closest('[data-tabs]').dataset.tabs;if(k==='arm')UI.arm=t.dataset.sub;else if(k==='comp')UI.comp=t.dataset.sub;else if(k==='op')UI.op=t.dataset.sub;else if(k==='fmg')UI.fmg=t.dataset.sub;else if(k==='def')UI.def=t.dataset.sub;else UI.qual=t.dataset.sub;syncTabs();refreshAll()}
 });
 function refreshAll(){
   if(typeof renderPend==='function'&&UI.view!=='inicio')renderPend();
@@ -183,6 +184,7 @@ function refreshAll(){
   if(UI.view==='pedidos'){if(typeof renderMailBox==='function')renderMailBox();if(UI.comp==='ped')renderOrders();if(UI.comp==='rhist')renderRecHist();if(UI.comp==='rkpi')renderRecKpi()}
   if(UI.view==='qualidade'){if(UI.qual==='hist')renderHist();if(UI.qual==='kpi')renderKpi();if(UI.qual==='nova')renderToolInfo()}
   if(UI.view==='operador'){if(UI.op==='hist')renderExitHist();if(UI.op==='kpi')renderExitKpi();if(UI.op==='nova')renderExitTool();if(UI.op==='param')renderOpParam()}
+  if(UI.view==='famag'&&typeof renderFamag==='function')renderFamag();
   if(UI.view==='def'&&typeof renderDefs==='function')renderDefs();
   if(UI.view==='armazem')sync3D();
 }
@@ -354,7 +356,7 @@ function openTool(id){
   </div>
   <div id="dAct"></div>
   ${nPecas(t)>1?`<div class="panel stack" style="gap:6px"><div class="row"><h4 class="grow">Conjunto · ${nPecas(t)} peças</h4></div><p class="small muted" style="margin:0">Arrumam e movem-se juntas numa só posição. “Separar” torna a peça numa ferramenta independente.</p><div class="tw"><table class="t"><tbody>${pecasDe(t).map(p=>`<tr><td>${esc(p.nome)}</td><td style="text-align:right">${p.tipo==='cortante'?'<span class=\'small muted\'>principal</span>':`<button class="btn sm w-only" data-sep="${esc(p.tipo)}" data-min="PCV">Separar</button>`}</td></tr>`).join('')}</tbody></table></div></div>`:''}
-  <div class="panel stack" style="gap:8px"><div class="row"><h4 class="grow">Parâmetros ideais por máquina</h4><button class="btn sm w-only" id="dParEdit" data-min="PCV">Editar</button></div><div id="dPar">${paramTable(t)}</div></div>
+  <div class="panel stack" style="gap:8px"><div class="row"><h4 class="grow">Parâmetros ideais por máquina</h4><button class="btn sm op-only w-only" id="dParEdit">Editar</button></div><div id="dPar">${paramTable(t)}</div></div>
   <div class="panel"><div class="row"><span class="small muted grow">Vida do cortante</span><b class="mono">${fmtN(t.folhas)}</b><span class="small muted">/ ${fmtN(vidaMax(t))} folhas${t.vidaMax?' (limite próprio)':''}</span></div>${vidaBar(t)}${(+t.folhas||0)>=vidaMax(t)?'<div class="small" style="color:var(--nok);margin-top:6px">Ultrapassou o limite de vida. Avaliar substituição ou reparação.</div>':''}</div>
   <dl class="kv panel">${kv('Material',esc(t.mat))}${kv('Denominação',esc(t.den))}${kv('Cliente',esc([t.ncli,t.cli].filter(Boolean).join(' · ')))}${kv('KAM',esc(t.kam))}${kv('Última data',fmtD(t.ult))}${kv('Notas',esc(t.notas))}${kv('Observações',esc(t.obs))}${kv('Status',esc(t.dec))}${kv('Revisão',esc(t.rev))}${kv('Atualizado',fmtD(t.upd))}</dl>
   <div class="panel stack"><div class="row"><h4 class="grow">Desenho do cortante</h4>${pdfUrl(t,'cortante')?`<a class="btn sm" href="${esc(pdfUrl(t,'cortante'))}" target="_blank" rel="noopener">${PDF_SVG} Abrir PDF</a>`:`<span class="small muted">Sem PDF associado.</span> <a class="btn sm" href="${esc(spSearch(t.cod))}" target="_blank" rel="noopener">Procurar no SharePoint</a>`}</div>${pdfUrl(t,'cortante')?'':`<div class="row w-only" data-min="PCV"><input type="url" id="dPdfLnk" class="grow" placeholder="Cola aqui a ligação do PDF (SharePoint › Copiar ligação)"><button class="btn sm" id="dPdfOk">Guardar link</button></div>`}${typeof pdfFiles==='function'&&pdfFiles(t,'cortante').length>1?`<div class="small">Outros PDFs com este código: ${pdfFiles(t,'cortante').slice(1,8).map(f=>`<a href="${esc(f.u)}" target="_blank" rel="noopener">${esc(f.n)}</a>`).join(' · ')}</div>`:''}${S.assets?`<label class="small w-only" data-min="PCV">Anexar PDF ou imagem do desenho <input type="file" id="dDes" accept=".pdf,image/*"></label>`:''}</div>
@@ -822,9 +824,11 @@ function refreshQualConfig(){
   fillMaqSelect();fillOpSelect();$('#maqList').innerHTML=machines().map(m=>`<option>${esc(m)}</option>`).join('');
   if(!$('#qList').dataset.dirty)renderChecklist();renderEditor();if(typeof renderExitList==='function'&&!Object.keys(X.ans).length)renderExitList();
 }
+const _initials=n=>String(n||'').trim().split(/\s+/).map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
 function renderChecklist(){
   const g=CL().groups;
-  $('#qList').innerHTML=g.map((gr,gi)=>`<div class="cl-group"><h4><span class="n">${gi+1}.</span> ${esc(gr.name)}</h4>${gr.items.map((it,ii)=>{const k=gi+'.'+ii,a=Q.ans[k]||{};return `<div class="cl-item" data-k="${k}"><span>${esc(it)}</span><div class="tri" role="group" aria-label="${esc(it)}"><button class="o" aria-pressed="${a.r==='OK'}" data-r="OK">OK</button><button class="n" aria-pressed="${a.r==='NOK'}" data-r="NOK">NOK</button><button class="a" aria-pressed="${a.r==='NA'}" data-r="NA">N/A</button><button class="apm" aria-pressed="${a.r==='APM'}" data-r="APM" title="A preparar na máquina">APM</button></div>${a.r==='NOK'?`<input class="cmt" type="text" data-c="${k}" value="${esc(a.c||'')}" placeholder="Descreve o problema (obrigatório)">`:''}</div>`}).join('')}</div>`).join('');
+  let _prevBy=null;
+  $('#qList').innerHTML=g.map((gr,gi)=>`<div class="cl-group"><h4><span class="n">${gi+1}.</span> ${esc(gr.name)}</h4>${gr.items.map((it,ii)=>{const k=gi+'.'+ii,a=Q.ans[k]||{};const showBy=a.r&&a.by&&a.by!==_prevBy;const ini=showBy?_initials(a.by):'';if(a.r&&a.by)_prevBy=a.by;return `<div class="cl-item" data-k="${k}"><span>${esc(it)}</span><div class="tri" role="group" aria-label="${esc(it)}"><button class="o" aria-pressed="${a.r==='OK'}" data-r="OK">OK</button><button class="n" aria-pressed="${a.r==='NOK'}" data-r="NOK">NOK</button><button class="a" aria-pressed="${a.r==='NA'}" data-r="NA">N/A</button><button class="apm" aria-pressed="${a.r==='APM'}" data-r="APM" title="A preparar na máquina">APM</button></div>${showBy?`<span class="ckby" title="${esc(a.by)}">${esc(ini)}</span>`:'<span class="ckby-sp"></span>'}${a.r==='NOK'?`<input class="cmt" type="text" data-c="${k}" value="${esc(a.c||'')}" placeholder="Descreve o problema (obrigatório)">`:''}</div>`}).join('')}</div>`).join('');
   verdict();
 }
 function verdict(){
@@ -832,7 +836,7 @@ function verdict(){
   $('#qVerdict').innerHTML=done<tot?`<div class="verdict pend">${done} de ${tot} pontos verificados</div>`:nok?`<div class="verdict nok">Reprovado · ${nok} ${nok===1?'ponto':'pontos'} NOK</div>`:`<div class="verdict ok">Aprovado · todos os pontos OK</div>`;
   $('#qRepWrap').hidden=!nok;return {tot,done,nok};
 }
-$('#qList').addEventListener('click',e=>{const b=e.target.closest('[data-r]');if(!b)return;const k=b.closest('[data-k]').dataset.k;Q.ans[k]={...(Q.ans[k]||{}),r:b.dataset.r};$('#qList').dataset.dirty='1';renderChecklist();if(b.dataset.r==='NOK')$(`[data-c="${k}"]`)?.focus()});
+$('#qList').addEventListener('click',e=>{const b=e.target.closest('[data-r]');if(!b)return;const k=b.closest('[data-k]').dataset.k;const who=($('#qOp')&&$('#qOp').value)||getName()||'';Q.ans[k]={...(Q.ans[k]||{}),r:b.dataset.r,by:who};$('#qList').dataset.dirty='1';renderChecklist();if(b.dataset.r==='NOK')$(`[data-c="${k}"]`)?.focus()});
 $('#qList').addEventListener('input',e=>{const k=e.target.dataset.c;if(k)Q.ans[k].c=e.target.value});
 toolAc($('#qCod'),$('#qAc'),t=>{Q.tool=t;$('#qCod').value=t.cod;renderToolInfo()});
 $('#qCod').addEventListener('input',()=>{Q.tool=null;renderToolInfo()});

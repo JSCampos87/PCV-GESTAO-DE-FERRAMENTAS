@@ -326,3 +326,20 @@ body.ck-open{overflow:hidden}
 .agent-row.muted{color:var(--muted)}
 .agent-tool{cursor:pointer;color:var(--ok);text-decoration:none}
 .agent-tool:hover{text-decoration:underline}
+/* iniciais de quem respondeu na checklist */
+.ckby{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--ok,#2a9a5b);color:#fff;font-size:10px;font-weight:700;margin-left:8px;flex:none}
+.ckby-sp{width:22px;margin-left:8px;flex:none}
+.cl-item{display:flex;align-items:center;gap:0}
+/* controlos exclusivos do operador */
+.op-only{display:none}
+body.role-OP .op-only{display:inline-flex}
+/* Portal FAMAG */
+.famag-head{display:flex;align-items:center;gap:16px;margin-bottom:14px}
+.famag-logo-lg{height:40px;width:auto}
+.famag-head h2{margin:0}
+.famag-head p{margin:2px 0 0}
+/* para o utilizador FAMAG, esconder o menu interno e deixar só o portal */
+body.role-FAMAG nav button:not(#navFamag){display:none}
+body.role-FAMAG #navFamag{display:inline-flex}
+.fmg-in{border:1px solid var(--line);border-radius:6px;padding:4px 7px;font-size:13px;width:100%;background:var(--bg)}
+.fmg-in[type=date]{width:150px}

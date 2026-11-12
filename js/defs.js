@@ -1,10 +1,11 @@
 /* ============ níveis de acesso (OP / PCV / SUPV) ============
    As passwords separam menus e evitam erros; não são segurança forte (o código da página é público). */
-const ROLES={OP:1,PCV:2,SUPV:3};
-const ROLE_NAME={OP:'Operador',PCV:'PCV',SUPV:'Supervisão'};
+const ROLES={OP:1,PCV:2,SUPV:3,FAMAG:0};
+const ROLE_NAME={OP:'Operador',PCV:'PCV',SUPV:'Supervisão',FAMAG:'FAMAG'};
 const PW_DEF={OP:'dd26a03cba7113fd01d48b790b248ea54d2f29242691e3b3686924f900bf7426',
   PCV:'ba5ba38aa16ccb9b5d0375e5bd5bd17c62e67abdcf94b83616012c276802f848',
-  SUPV:'ed8b04f489f85e2d3906151eb8d1391c5e8b4e6c1ac107dc935bf5a189301e5c'};
+  SUPV:'ed8b04f489f85e2d3906151eb8d1391c5e8b4e6c1ac107dc935bf5a189301e5c',
+  FAMAG:'70d280f8ee030c1c83e320445d51ce2175f61e3b7edae571711a65b5510f1a70'};
 let ROLE=null,ROLE_H='';
 const pwHash=r=>(S.cl&&S.cl.pw&&S.cl.pw[r])||PW_DEF[r];
 const roleAtLeast=l=>(ROLES[ROLE]||0)>=(ROLES[l]||9);
@@ -32,13 +33,13 @@ const pwNorm=v=>sha256(String(v||'').trim().toUpperCase());
 
 /* páginas e separadores mínimos por nível */
 const VIEW_MIN={pedidos:'PCV',qualidade:'PCV',def:'SUPV'};
-const viewAllowed=v=>!VIEW_MIN[v]||roleAtLeast(VIEW_MIN[v]);
+const viewAllowed=v=>{if(ROLE==='FAMAG')return v==='famag';if(v==='famag')return roleAtLeast('PCV');return !VIEW_MIN[v]||roleAtLeast(VIEW_MIN[v])};
 function fixTabs(){if(UI.arm==='sucata'&&!roleAtLeast('SUPV'))UI.arm='lista';if(UI.op==='kpi'&&!roleAtLeast('PCV'))UI.op='nova'}
 {const _go=go;go=function(v,sub){if(!ROLE||!viewAllowed(v))v='inicio';_go(v,sub)}}
 {const _st=syncTabs;syncTabs=function(){fixTabs();_st()}}
 
 function applyRole(){
-  document.body.classList.remove('role-OP','role-PCV','role-SUPV');
+  document.body.classList.remove('role-OP','role-PCV','role-SUPV','role-FAMAG');
   if(ROLE)document.body.classList.add('role-'+ROLE);
   $('#roleName').textContent=ROLE||'—';$('#roleChip').title=ROLE?('Nível: '+ROLE_NAME[ROLE]+' · clicar para trocar'):'Entrar';
   if(!viewAllowed(UI.view))go('inicio');else{syncTabs();refreshAll()}
@@ -56,14 +57,14 @@ function showLogin(canCancel){
   o.hidden=false;setTimeout(()=>$('#lgPw')?.focus(),30);
   $('#lgNo')&&($('#lgNo').onclick=()=>{o.hidden=true});
   $('#lgForm').onsubmit=e=>{e.preventDefault();const h=pwNorm($('#lgPw').value);
-    const r=['SUPV','PCV','OP'].find(k=>pwHash(k)===h);
+    const r=['SUPV','PCV','OP','FAMAG'].find(k=>pwHash(k)===h);
     if(!r){$('#lgErr').textContent='Password errada.';$('#lgPw').select();return}
     ROLE=r;ROLE_H=h;saveRole();o.hidden=true;if(!$('#ov').hidden)closeDrawer();
-    applyRole();go(r==='OP'?'inicio':UI.view);toast('Entraste como '+ROLE_NAME[r]+'.')};
+    applyRole();go(r==='FAMAG'?'famag':(r==='OP'?'inicio':UI.view));toast('Entraste como '+ROLE_NAME[r]+'.')};
 }
 function initAuth(){
   let st=null;try{st=JSON.parse(localStorage.getItem('pcv_role')||'null')}catch{}
-  if(st&&ROLES[st.r]&&st.h===pwHash(st.r)){ROLE=st.r;ROLE_H=st.h;applyRole()}
+  if(st&&ROLES[st.r]!==undefined&&st.h===pwHash(st.r)){ROLE=st.r;ROLE_H=st.h;applyRole();if(st.r==='FAMAG')go('famag')}
   else{applyRole();showLogin(false)}
 }
 /* se a supervisão mudar as passwords, os postos têm de entrar de novo */
@@ -229,7 +230,7 @@ $('#armPend').onclick=()=>openDrawer(`<div class="dh"><div class="grow"><h3 styl
 const PDF_KINDS=[['cortante','01 - Cortantes'],['braille','00 - Brailles'],['relevo','02 - Relevos']];
 function pdfKeys(name){
   const u=String(name).toUpperCase().replace(/\.PDF$/,''),out=new Set();
-  for(const m of u.matchAll(/(?<![A-Z0-9])([ST])(\d{4})([A-Z]?)(?!\d)/g))out.add(m[1]+m[2]+m[3]);
+  for(const m of u.matchAll(/(?<![A-Z0-9])([STM])(\d{4})([A-Z])(?![A-Z0-9])/g))out.add(m[1]+m[2]+m[3]);
   const head=u.split('_')[0];
   for(const m of head.matchAll(/P-?(\d{6})/g))out.add('P'+m[1]);
   const pm=head.match(/P-?\d{6}/);if(pm)for(const m of head.slice(pm.index).matchAll(/\+(\d{3,4})-\d{2}/g))out.add('P'+m[1].padStart(6,'0'));
@@ -237,7 +238,7 @@ function pdfKeys(name){
 }
 function toolKeys(t){
   const u=String(t.cod||'').toUpperCase(),ks=[];
-  for(const m of u.matchAll(/([ST])(\d{4})([A-Z]?)(?!\d)/g)){ks.push(m[1]+m[2]+m[3]);if(ks.length>=3)break}
+  for(const m of u.matchAll(/([STM])(\d{4})([A-Z])(?![A-Z0-9])/g)){ks.push(m[1]+m[2]+m[3]);if(ks.length>=5)break}
   const p=u.match(/^P-?(\d{6})/);if(p)ks.push('P'+p[1]);
   return ks;
 }
@@ -337,7 +338,7 @@ async function mailNoPdf(manual){
 /* ============ ligar Brailles e relevos pelo conteúdo dos PDFs (v28) ============
    Lê o texto dos PDFs escolhidos (pdf.js), procura códigos de cortante (S/T + 4 dígitos + letra) e guarda
    config/pdfcont = {braille:{ficheiro:[códigos]}, relevo:{…}, upd:{…}}. Junta ao que já existia. */
-const CONT_RE=/(?<![A-Z0-9])([ST])(\d{4})([A-Z])(?!\d)/g;
+const CONT_RE=/(?<![A-Z0-9])([STM])(\d{4})([A-Z])(?![A-Z0-9])/g;
 async function pdfContRead(kind,files,quiet){
   const st=(!quiet&&$('#pcStat'))||document.createElement('div');files=[...files].filter(f=>/\.pdf$/i.test(f.name));if(!files.length){toast('Escolhe ficheiros PDF.',1);return}
   if(!needDb())return;
