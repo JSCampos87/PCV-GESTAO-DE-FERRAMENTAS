@@ -32,7 +32,7 @@ function sha256(str){
 const pwNorm=v=>sha256(String(v||'').trim().toUpperCase());
 
 /* páginas e separadores mínimos por nível */
-const VIEW_MIN={pedidos:'PCV',qualidade:'PCV',def:'SUPV'};
+const VIEW_MIN={pedidos:'PCV',qualidade:'PCV',requisicoes:'PCV',def:'SUPV'};
 const viewAllowed=v=>{if(ROLE==='FAMAG')return v==='famag';if(v==='famag')return roleAtLeast('PCV');return !VIEW_MIN[v]||roleAtLeast(VIEW_MIN[v])};
 function fixTabs(){if(UI.arm==='sucata'&&!roleAtLeast('SUPV'))UI.arm='lista';if(UI.op==='kpi'&&!roleAtLeast('PCV'))UI.op='nova'}
 {const _go=go;go=function(v,sub){if(!ROLE||!viewAllowed(v))v='inicio';_go(v,sub)}}

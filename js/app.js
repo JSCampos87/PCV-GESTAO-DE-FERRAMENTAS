@@ -96,6 +96,8 @@ async function initDb(){
   db.doc('config/checklist').onSnapshot(d=>{S.cl=d.exists?d.data():null;S.clExists=d.exists;refreshQualConfig()},()=>{});
   db.doc('config/pdfmail').onSnapshot(d=>{S.pdfMail=d.exists?d.data():null;if(typeof renderPdfIdx==='function')renderPdfIdx()},()=>{});
   db.doc('config/mailsync').onSnapshot(d=>{S.mailsync=d.exists?d.data():null;if(typeof renderMailBox==='function')renderMailBox()},()=>{});
+  db.doc('config/reqauth').onSnapshot(d=>{S.reqAuth=d.exists?(d.data().items||[]):[];if(UI.view==='requisicoes'&&typeof renderReqAuthBox==='function')renderReqAuthBox()},()=>{});
+  db.doc('config/reqlog').onSnapshot(d=>{S.reqLog=d.exists?(d.data().items||[]):[]},()=>{});
   db.doc('config/fampipe').onSnapshot(d=>{S.fampipe=d.exists?d.data():null;if(UI.view==='famag'&&typeof renderFamag==='function')renderFamag()},()=>{});
   db.doc('config/pdfcont').onSnapshot(d=>{S.pdfcont=d.exists?d.data():null;S.pdfMap=null;refreshAll()},()=>{});
   db.doc('config/pdfidx').onSnapshot(d=>{S.pdfidx=d.exists?d.data():null;S.pdfMap=null;refreshAll();if(typeof renderPdfIdx==='function')renderPdfIdx()},()=>{});
@@ -185,6 +187,7 @@ function refreshAll(){
   if(UI.view==='qualidade'){if(UI.qual==='hist')renderHist();if(UI.qual==='kpi')renderKpi();if(UI.qual==='nova')renderToolInfo()}
   if(UI.view==='operador'){if(UI.op==='hist')renderExitHist();if(UI.op==='kpi')renderExitKpi();if(UI.op==='nova')renderExitTool();if(UI.op==='param')renderOpParam()}
   if(UI.view==='famag'&&typeof renderFamag==='function')renderFamag();
+  if(UI.view==='requisicoes'&&typeof renderReq==='function')renderReq();
   if(UI.view==='def'&&typeof renderDefs==='function')renderDefs();
   if(UI.view==='armazem')sync3D();
 }

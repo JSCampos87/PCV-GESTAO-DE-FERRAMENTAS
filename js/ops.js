@@ -124,10 +124,10 @@ document.addEventListener('click',e=>{const b=e.target.closest('#seedGo');if(b){
 const EJ=()=>{const c=(window.PCV_CONFIG||{}).emailjs||{};return c.publicKey&&c.serviceId&&c.templateId?c:null};
 const mailTo=tp=>{const k={nc:'ncTo',vida:'vidaTo',saida:'saidaTo'}[tp];const v=S.cl&&S.cl[k];return v&&v.length?v:ncTo()};
 const autoMail=()=>S.cl?.autoMail!==false;
-async function sendMail(to,subject,message){
+async function sendMail(to,subject,message,opts){
   const c=EJ();if(!c)throw new Error('envio automático não configurado (config.js › emailjs)');
   const res=await fetch('https://api.emailjs.com/api/v1.0/email/send',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({service_id:c.serviceId,template_id:c.templateId,user_id:c.publicKey,template_params:{to_email:to.join(','),subject,message,reply_to:to[0]||''}})});
+    body:JSON.stringify({service_id:c.serviceId,template_id:c.templateId,user_id:c.publicKey,template_params:{to_email:to.join(','),subject,message,reply_to:to[0]||'',cc:(opts&&opts.cc)||''}})});
   if(!res.ok)throw new Error('EmailJS '+res.status+': '+(await res.text()).slice(0,120));
 }
 async function notifyNc(n,force){
@@ -139,4 +139,17 @@ async function notifyNc(n,force){
 async function notifyAlert(topic,subject,message){
   if(!EJ()||!autoMail())return;
   try{await sendMail(mailTo(topic),'[PCV] '+subject,message+'\n\nMensagem automática da app PCV Ferramentas.')}catch(e){toast('Alerta por email não enviado: '+e.message,1)}
+}
+
+/* Operador: consulta de parâmetros ideais por máquina (v34) */
+function renderOpParam(){
+  const sel=$('#opParMaq');if(!sel)return;
+  const ms=machines();const cur=sel.value;
+  sel.innerHTML='<option value="">Escolher máquina…</option>'+ms.map(m=>`<option${m===cur?' selected':''}>${esc(m)}</option>`).join('');
+  if(!sel.dataset.b){sel.dataset.b='1';sel.addEventListener('change',renderOpParam)}
+  const mq=sel.value,box=$('#opParList');if(!box)return;
+  if(!mq){box.innerHTML='<p class="fempty">Escolhe uma máquina para ver os parâmetros.</p>';return}
+  const list=[...S.tools.values()].filter(t=>t.est!=='sucatado'&&(t.param||{})[mq]&&((t.param[mq].p||'')||(t.param[mq].v||'')||(t.param[mq].n||'')))
+    .sort((a,b)=>String(a.cod).localeCompare(String(b.cod)));
+  box.innerHTML=list.length?`<div class="tw"><table class="t"><thead><tr><th>Cortante</th><th>Cliente</th><th>Pressão</th><th>Velocidade</th><th>Nota</th></tr></thead><tbody>${list.map(t=>{const p=t.param[mq];return `<tr><td class="code">${esc(t.cod)}</td><td>${esc((t.cli||'').slice(0,28))}</td><td class="mono">${esc(p.p||'—')}</td><td class="mono">${esc(p.v||'—')}</td><td>${esc(p.n||'')}</td></tr>`}).join('')}</tbody></table></div><p class="small muted" style="margin-top:6px">${list.length} cortante(s) com parâmetros guardados para ${esc(mq)}.</p>`:`<p class="fempty">Ainda não há parâmetros guardados para a máquina ${esc(mq)}.</p>`;
 }

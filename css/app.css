@@ -349,3 +349,18 @@ body.role-FAMAG #navFamag{display:inline-flex}
 .fmg-detail-box{padding:8px 4px;font-size:13px}
 .fmg-exp{user-select:none}
 .late{color:var(--nok,#d0574a);font-weight:700}
+/* módulo de requisições (loja interna) */
+.reqcat{margin-bottom:18px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface)}
+.reqcat-head{display:flex;align-items:center;gap:14px;padding:12px 16px;background:var(--surface-2,#f5f9f6);border-bottom:1px solid var(--line)}
+.reqcat-head img{width:56px;height:56px;border-radius:10px;object-fit:cover;flex:none}
+.reqcat-head h3{margin:0;font-size:17px}
+.reqitems{padding:6px 16px}
+.reqitem{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid var(--line)}
+.reqitem:first-child{border-top:0}
+.reqitem-info{flex:1;display:flex;flex-direction:column;min-width:0}
+.reqitem-info b{font-weight:600;font-size:14px}
+.qtybox{display:flex;align-items:center;gap:0;flex:none}
+.qbtn{width:34px;height:34px;border:1px solid var(--line);background:var(--surface);font-size:18px;font-weight:700;cursor:pointer;color:var(--ink)}
+.qbtn:first-child{border-radius:8px 0 0 8px}.qbtn:last-child{border-radius:0 8px 8px 0}
+.qin{width:52px;height:34px;text-align:center;border:1px solid var(--line);border-left:0;border-right:0;font-size:14px;font-weight:600;background:var(--bg)}
+.reqcode{border:1px solid var(--line);border-radius:6px;padding:4px 8px}

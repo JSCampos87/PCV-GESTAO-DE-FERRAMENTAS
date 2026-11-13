@@ -34,6 +34,9 @@ function renderFamNovos(){
   const top=new Set((fampipe().top20||[]).map(c=>norm((String(c).match(/[STM]\d{4}[A-Z]/)||[c])[0])));
   const prog=fampipe().prog;
   let list=fampipe().pipe.slice();
+  // linhas com Data Fim Produção = entregues: marcar estado e esconder por omissão
+  list.forEach(p=>{if(p.fim&&!['ENTREGUE'].includes(p.estado))p._entregue=true});
+  if(!$('#fmgFEst')?.value&&!$('#fmgFEntregues')?.checked)list=list.filter(p=>!p.fim);
   if(q)list=list.filter(p=>norm([p.np,p.ref,p.nome,p.artigos].join(' ')).includes(q));
   if(fe)list=list.filter(p=>(p.estado||'em curso').toUpperCase()===fe.toUpperCase()||(fe==='em curso'&&!p.estado));
   if(fatr)list=list.filter(p=>p.dataAtual&&Date.parse(p.dataAtual)<Date.now()&&(p.estado||'')!=='OK'&&(p.estado||'')!=='ENTREGUE');
@@ -73,7 +76,7 @@ function renderFamTop(){
     return `<tr><td class="code">${esc(c)}</td><td>${t?esc(({armazem:'em armazém',maquina:'na máquina '+(t.maq||''),reparacao:'em reparação',arrumar:'no pré-corte'})[t.est]||t.est):'<span class="muted">—</span>'}</td><td class="mono">${t?(t.folhas||0).toLocaleString('pt-PT'):'—'}</td></tr>`}).join('')}</tbody></table></div>`:'<p class="fempty">Sem cortantes TOP 20 definidos.</p>';
 }
 // pesquisa reage
-['fmgQ','fmgFEst','fmgFAtraso','fmgFTop'].forEach(id=>{document.addEventListener('input',e=>{if(e.target.id===id)renderFamNovos()});document.addEventListener('change',e=>{if(e.target.id===id)renderFamNovos()})});
+['fmgQ','fmgFEst','fmgFAtraso','fmgFTop','fmgFEntregues'].forEach(id=>{document.addEventListener('input',e=>{if(e.target.id===id)renderFamNovos()});document.addEventListener('change',e=>{if(e.target.id===id)renderFamNovos()})});
 // detalhe de peças ao clicar
 document.addEventListener('click',e=>{const b=e.target.closest('[data-fexp]');if(!b)return;
   const np=b.dataset.fexp,tr=b.closest('tr');
