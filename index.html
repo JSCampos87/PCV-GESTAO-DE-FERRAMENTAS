@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="css/app.css">
 <script src="js/vendor/xlsx.full.min.js"></script>
-<script>window.PCV_VENDOR='js/vendor/';window.PCV_VERSAO='39 · 12/11/2026';</script>
+<script>window.PCV_VENDOR='js/vendor/';window.PCV_VERSAO='40 · 13/11/2026';</script>
 <script src="config.js"></script>
 <script src="js/store.js"></script>
 </head>
@@ -249,7 +249,8 @@
     <button role="tab" data-sub="top20">TOP 20</button>
   </div>
   <div data-pane="novos" class="stack">
-    <div class="row"><input type="search" id="fmgQ" class="grow" placeholder="Procurar por código, nome comercial, nº de produção…"><span class="small muted" id="fmgNovosN"></span></div>
+    <div class="panel fmg-upload" id="fmgUploadBox" hidden><div class="row" style="align-items:center;gap:12px"><div class="grow"><b>Atualizar pela extração do ERP</b><p class="small muted" style="margin:2px 0 0">Carrega o Excel exportado do vosso sistema. As linhas são atualizadas pelo Nº de Produção (as existentes atualizam, as novas são acrescentadas).</p></div><label class="btn pri" style="cursor:pointer">Carregar Excel<input type="file" id="fmgXls" accept=".xlsx,.xls" hidden></label></div><div id="fmgXlsStat" class="small"></div></div>
+    <div class="row" style="flex-wrap:wrap;gap:8px"><input type="search" id="fmgQ" class="grow" placeholder="Procurar por código, nome comercial, nº de produção…"><select id="fmgFEst"><option value="">Todos os estados</option><option>em curso</option><option>OK</option><option>SUSPENSO</option><option>ENTREGUE</option></select><label class="row small" style="gap:5px;width:auto"><input type="checkbox" id="fmgFAtraso">Só atrasados</label><label class="row small" style="gap:5px;width:auto"><input type="checkbox" id="fmgFTop">Só TOP 20</label><span class="small muted" id="fmgNovosN"></span></div>
     <div id="fmgNovos"></div>
   </div>
   <div data-pane="reparacoes" class="stack" hidden>

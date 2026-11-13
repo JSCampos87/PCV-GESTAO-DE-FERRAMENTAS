@@ -9,20 +9,18 @@ const Rack3D=(()=>{
   const SLOT=0.28, LEVEL_H=1.0, DEPTH=1.0, ROW_GAP=1.15;
   // posição (x,z) e rotação de cada rack no chão, da planta. ang em radianos (0 = alinhado em X).
   const PLAN={
-    // topo: A e B horizontais, lado direito-cima
+    // topo
     A:{x:3,   z:-16, rot:0},
     B:{x:3.5, z:-13, rot:0},
-    // Rack E vertical, à esquerda da A
-    E:{x:-2,  z:-15, rot:Math.PI/2},
-    // faixa do meio: H e D horizontais, lado a lado
+    E:{x:-3,  z:-15, rot:Math.PI/2},
+    // faixa do meio, à esquerda
     H:{x:-3,  z:-9,  rot:0},
     D:{x:1,   z:-9,  rot:0},
-    // faixa de baixo-esquerda: F e G(pequeno? não — ver) ; aqui G é o grande vertical à direita
+    // baixo-esquerda
     F:{x:-3,  z:-4,  rot:0},
-    // Rack G grande, vertical, lado direito junto ao PCV
-    G:{x:11,  z:-9,  rot:Math.PI/2},
-    // Rack C à direita, vertical curto
-    C:{x:14,  z:-11, rot:Math.PI/2},
+    C:{x:1,   z:-3,  rot:0},
+    // Rack G grande e isolado, canto inferior direito, vertical
+    G:{x:15,  z:-3,  rot:Math.PI/2},
   };
   // zonas do chão (croqui): caixotes 45-60 + SN01 à esquerda da H; armário bobst 106 junto à máquina
   let T,scene,cam,ren,host,occMesh,hlGroup,model=null,slotIndex=new Map(),idxToPos=[],raf=0,dragging=null;

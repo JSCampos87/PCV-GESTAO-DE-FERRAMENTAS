@@ -343,3 +343,9 @@ body.role-FAMAG nav button:not(#navFamag){display:none}
 body.role-FAMAG #navFamag{display:inline-flex}
 .fmg-in{border:1px solid var(--line);border-radius:6px;padding:4px 7px;font-size:13px;width:100%;background:var(--bg)}
 .fmg-in[type=date]{width:150px}
+/* portal FAMAG — upload e detalhe */
+.fmg-upload{background:color-mix(in srgb,var(--accent,#C4D600) 10%,var(--surface));border-color:color-mix(in srgb,var(--accent,#C4D600) 30%,transparent)}
+.fmg-detail{background:var(--surface-2,#f5f9f6)}
+.fmg-detail-box{padding:8px 4px;font-size:13px}
+.fmg-exp{user-select:none}
+.late{color:var(--nok,#d0574a);font-weight:700}
