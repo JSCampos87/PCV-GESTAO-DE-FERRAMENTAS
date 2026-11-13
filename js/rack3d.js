@@ -26,7 +26,7 @@ const Rack3D=(()=>{
   };
   // zonas do chão (croqui): caixotes 45-60 + SN01 à esquerda da H; armário bobst 106 junto à máquina
   let T,scene,cam,ren,host,occMesh,hlGroup,model=null,slotIndex=new Map(),idxToPos=[],raf=0,dragging=null;
-  let ang=-0.6,elev=0.85,dist=40,target={x:4,y:1,z:-9},tgtGoal=null,distGoal=null,tip,needs=true,pulse=0,hlList=[];
+  let ang=-0.6,elev=0.85,dist=40,target={x:4,y:1,z:-9},home=null,tgtGoal=null,distGoal=null,tip,needs=true,pulse=0,hlList=[];
   const lerp=(a,b,t)=>a+(b-a)*t;
 
   function buildModel(positions,occ){
@@ -130,6 +130,11 @@ const Rack3D=(()=>{
     occMesh.count=occ.length;occMesh.instanceMatrix.needsUpdate=true;scene.add(occMesh);
     slots.forEach(s=>slotIndex.set(s.p,s));
     hlGroup=new T.Group();scene.add(hlGroup);
+    // enquadrar a câmara em tudo o que foi desenhado (racks + zonas)
+    if(slots.length){let minX=1e9,maxX=-1e9,minZ=1e9,maxZ=-1e9;
+      for(const o of slots){if(o.x<minX)minX=o.x;if(o.x>maxX)maxX=o.x;if(o.z<minZ)minZ=o.z;if(o.z>maxZ)maxZ=o.z}
+      const cx=(minX+maxX)/2,cz=(minZ+maxZ)/2,span=Math.max(maxX-minX,maxZ-minZ);
+      target={x:cx,y:1,z:cz};dist=Math.max(22,span*1.25+8);home={ang:-0.6,elev:0.82,dist,target:{x:cx,y:1,z:cz}};}
     applyHighlight();needs=true;loop();
   }
 
@@ -186,7 +191,7 @@ const Rack3D=(()=>{
     mount,
     setData(positions,occSet){const key=Object.keys(positions).length+':'+occSet.size;if(model&&model._key===key)return;model=buildModel(positions,occSet);model._key=key;if(scene)build();},
     highlight(list){hlList=[...new Set((list||[]).filter(Boolean))];applyHighlight();},
-    reset(){ang=-0.6;elev=0.85;tgtGoal=null;target={x:4,y:1,z:-9};distGoal=40;needs=true;loop();},
+    reset(){if(home){ang=home.ang;elev=home.elev;target={...home.target};distGoal=home.dist}else{ang=-0.6;elev=0.85;target={x:4,y:1,z:-9};distGoal=40}tgtGoal=null;needs=true;loop();},
     get mounted(){return !!ren}
   };
 })();
