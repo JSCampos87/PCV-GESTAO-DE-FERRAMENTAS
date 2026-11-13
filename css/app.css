@@ -310,7 +310,7 @@ body.ck-open{overflow:hidden}
 .estfilter label{display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:500;cursor:pointer}
 .estfilter input{margin:0}
 /* logo FAMAG na zona de reparação */
-.famag-logo{height:26px;width:auto;display:block;margin:2px 0 1px}
+.famag-logo{height:34px;width:auto;display:block;margin:2px 0 1px}
 /* janela do agente na página inicial */
 .agentbox{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:0 0 14px;box-shadow:0 2px 10px rgba(0,0,0,.04)}
 .agent-in{display:flex;align-items:center;gap:10px}
@@ -335,7 +335,7 @@ body.ck-open{overflow:hidden}
 body.role-OP .op-only{display:inline-flex}
 /* Portal FAMAG */
 .famag-head{display:flex;align-items:center;gap:16px;margin-bottom:14px}
-.famag-logo-lg{height:40px;width:auto}
+.famag-logo-lg{height:56px;width:auto}
 .famag-head h2{margin:0}
 .famag-head p{margin:2px 0 0}
 /* para o utilizador FAMAG, esconder o menu interno e deixar só o portal */
@@ -352,7 +352,7 @@ body.role-FAMAG #navFamag{display:inline-flex}
 /* módulo de requisições (loja interna) */
 .reqcat{margin-bottom:18px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface)}
 .reqcat-head{display:flex;align-items:center;gap:14px;padding:12px 16px;background:var(--surface-2,#f5f9f6);border-bottom:1px solid var(--line)}
-.reqcat-head img{width:56px;height:56px;border-radius:10px;object-fit:cover;flex:none}
+.reqcat-head img{width:88px;height:88px;border-radius:12px;object-fit:cover;flex:none;background:#fff;border:1px solid var(--line)}
 .reqcat-head h3{margin:0;font-size:17px}
 .reqitems{padding:6px 16px}
 .reqitem{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid var(--line)}
