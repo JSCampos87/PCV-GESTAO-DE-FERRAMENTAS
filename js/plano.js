@@ -10,9 +10,9 @@ function renderPlano(){
   const byCod=new Map();for(const t of S.tools.values())for(const k of toolKeys(t))if(!byCod.has(k))byCod.set(k,t);
   const estInfo=t=>{if(!t)return{txt:'não encontrado',cls:'pl-unk'};
     return {maquina:{txt:'na máquina '+(t.maq||''),cls:'pl-maq'},armazem:{txt:t.pos||'em armazém',cls:'pl-arm'},arrumar:{txt:'no pré-corte',cls:'pl-pre'},reparacao:{txt:'em reparação',cls:'pl-rep'},sucatado:{txt:'sucatado',cls:'pl-unk'}}[t.est]||{txt:t.est,cls:'pl-arm'}};
-  el.innerHTML=`<div class="plano-grid">${plan.maqs.map(m=>`<div class="plano-col"><div class="plano-colhead">${esc(m.maq)}<span class="small muted">${m.seq.length} cortantes</span></div>
-    <div class="plano-list">${m.seq.map((s,i)=>{const t=byCod.get(normCod(s.cod));const e=estInfo(t);
-      return `<div class="plano-card ${e.cls}"><div class="plano-ord">${i+1}</div><div class="plano-body"><b class="mono">${esc(s.cod)}</b><span class="plano-ex">${s.ex} ex.</span><span class="plano-loc">${esc(e.txt)}</span></div></div>`}).join('')}</div></div>`).join('')}</div>
+  el.innerHTML=`<div class="plano-legend"><b>Onde está:</b><span><i style="background:#2a9a5b"></i>em armazém (posição)</span><span><i style="background:#2f6fb5"></i>na máquina</span><span><i style="background:#e2a91b"></i>no pré-corte</span><span><i style="background:#d08700"></i>em reparação</span><span><i style="background:#bbb"></i>não encontrado</span></div><div class="plano-grid">${plan.maqs.map(m=>`<div class="plano-col"><div class="plano-colhead">${esc(m.maq)}<span class="small muted">${m.seq.length} cortantes</span></div>
+    <div class="plano-list" data-maq="${esc(m.maq)}">${m.seq.map((s,i)=>{const t=byCod.get(normCod(s.cod));const e=estInfo(t);
+      return `<div class="plano-card ${e.cls}"${i>=10?' hidden data-extra':''}><div class="plano-ord">${i+1}</div><div class="plano-body"><b class="mono">${esc(s.cod)}</b><span class="plano-ex">${s.ex} ex.</span><span class="plano-loc">${esc(e.txt)}</span></div></div>`}).join('')}${m.seq.length>10?`<button class="btn sm plano-more" data-more="${esc(m.maq)}">Ver as outras ${m.seq.length-10} ▾</button>`:''}</div></div>`).join('')}</div>
     <p class="small muted" style="margin-top:8px">${plan.ts?'Planos carregados em '+fmtDT(plan.ts):''}${plan.by?' · '+esc(plan.by):''}</p>`;
 }
 function normCod(c){const m=String(c||'').toUpperCase().match(/[MST]\d{3,4}[A-Z]/);return m?m[0]:String(c||'').toUpperCase()}
@@ -52,3 +52,9 @@ async function planoUpload(files){
 }
 document.addEventListener('click',e=>{if(e.target.id==='planoBtn'){const inp=$('#planoFiles');if(inp){inp.value='';inp.click()}}});
 document.addEventListener('change',e=>{if(e.target.id==='planoFiles'){const fs=[...e.target.files];e.target.value='';if(fs.length){planoUpload(fs)}else{toast('Nenhum ficheiro escolhido.',1)}}});
+
+document.addEventListener('click',e=>{const b=e.target.closest('[data-more]');if(!b)return;
+  const list=b.closest('.plano-list');const hidden=list.querySelectorAll('[data-extra]');
+  const show=b.dataset.open!=='1';hidden.forEach(c=>c.hidden=!show);
+  b.dataset.open=show?'1':'0';b.textContent=show?'Ver só as 10 primeiras ▴':('Ver as outras '+hidden.length+' ▾');
+});

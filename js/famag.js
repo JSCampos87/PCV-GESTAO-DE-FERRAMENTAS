@@ -15,13 +15,18 @@ function renderFamag(){
 
 function famRow(p){
   const dias=p.dataAtual?Math.round((Date.parse(p.dataAtual)-Date.now())/864e5):null;
-  const atraso=dias!=null&&dias<0;
+  const atraso=dias!=null&&dias<0&&(p.estado||'')!=='OK'&&(p.estado||'')!=='ENTREGUE';
   const pr=(fampipe().prog[p.np]||{});
+  const canPrio=!isFamag()&&roleAtLeast('PCV'); // a GLP (Hinojosa) marca prioridades
+  const prioCell=pr.prio
+    ? `<span class="prio-badge${canPrio?' click':''}" ${canPrio?`data-prio="${esc(p.np)}" title="Clicar para tirar a prioridade"`:''}>P${esc(pr.prio)}</span>`
+    : (canPrio?`<button class="btn sm prio-add" data-prio="${esc(p.np)}" title="Dar prioridade">+ prioridade</button>`:'<span class="muted">—</span>');
   return `<tr data-fnp="${esc(p.np)}"><td class="mono fmg-exp" data-fexp="${esc(p.np)}" title="Ver peças em fabrico" style="cursor:pointer;color:var(--ok)">▸</td>
-    <td class="mono">${esc(p.np)}${pr.prio?`<span class="pill p-maquina" title="Prioridade">P${esc(pr.prio)}</span>`:''}</td>
+    <td>${prioCell}</td>
+    <td class="mono">${esc(p.np)}</td>
     <td class="code">${esc(p.ref)}</td>
     <td>${esc(p.nome)}</td>
-    <td class="mono small">${esc(p.dataOrig||'—')}</td>
+    <td class="mono small">${esc(p.inicio||'—')}</td>
     <td>${isFamag()?`<input type="date" class="fmg-in" data-ff="dataAtual" value="${esc(p.dataAtual||'')}">`:`<span class="mono ${atraso?'late':''}">${esc(p.dataAtual||'—')}</span>`}</td>
     <td><span class="pill ${({'OK':'p-ok','SUSPENSO':'p-rep','ENTREGUE':'p-arm'})[p.estado]||'p-enc'}">${esc(p.estado||'em curso')}</span></td>
     <td>${isFamag()?`<input type="text" class="fmg-in" data-ff="obs" value="${esc(p.obs||'')}" placeholder="Observação…">`:esc(p.obs||'')}</td>
@@ -41,9 +46,9 @@ function renderFamNovos(){
   if(fe)list=list.filter(p=>(p.estado||'em curso').toUpperCase()===fe.toUpperCase()||(fe==='em curso'&&!p.estado));
   if(fatr)list=list.filter(p=>p.dataAtual&&Date.parse(p.dataAtual)<Date.now()&&(p.estado||'')!=='OK'&&(p.estado||'')!=='ENTREGUE');
   if(ftop)list=list.filter(p=>top.has(norm((p.ref.match(/[STM]\d{4}[A-Z]/)||[p.ref])[0])));
-  list.sort((a,b)=>{const da=a.dataAtual||'9999',db=b.dataAtual||'9999';return da.localeCompare(db)});
+  list.sort((a,b)=>{const pa=+((prog[a.np]||{}).prio||9999),pb=+((prog[b.np]||{}).prio||9999);if(pa!==pb)return pa-pb;return (a.dataAtual||'9999').localeCompare(b.dataAtual||'9999')});
   if($('#fmgNovosN'))$('#fmgNovosN').textContent=`${list.length} cortante(s)`;
-  el.innerHTML=list.length?`<div class="tw"><table class="t"><thead><tr><th></th><th>Nº Prod.</th><th>Código</th><th>Nome comercial</th><th>Data original</th><th>Data prevista</th><th>Estado</th><th>Observações</th></tr></thead><tbody>${list.map(famRow).join('')}</tbody></table></div>`:'<p class="fempty">Sem resultados.</p>';
+  el.innerHTML=list.length?`<div class="tw"><table class="t"><thead><tr><th></th><th>Prio.</th><th>Nº Prod.</th><th>Código</th><th>Nome comercial</th><th>Início</th><th>Data prevista</th><th>Estado</th><th>Observações</th></tr></thead><tbody>${list.map(famRow).join('')}</tbody></table></div>`:'<p class="fempty">Sem resultados.</p>';
 }
 // guardar edições da FAMAG (data/obs)
 let fmgT=null;
@@ -112,4 +117,18 @@ document.addEventListener('change',async e=>{if(e.target.id!=='fmgXls'||!isFamag
     }
     S.fampipe=cur;await saveFampipe();st.textContent=`Atualizado: ${upd} linha(s) atualizadas, ${add} nova(s).`;renderFamNovos();
   }catch(err){st.textContent='Erro a ler o Excel: '+err.message}
+});
+
+// prioridades: a GLP (Hinojosa) clica para dar/tirar
+document.addEventListener('click',async e=>{const b=e.target.closest('[data-prio]');if(!b)return;
+  if(isFamag()||!roleAtLeast('PCV'))return;
+  if(!needDb())return;
+  const np=b.dataset.prio,cur=fampipe();cur.prog=cur.prog||{};
+  const has=cur.prog[np]&&cur.prog[np].prio;
+  if(has){const old=+cur.prog[np].prio;delete cur.prog[np].prio;if(!Object.keys(cur.prog[np]).length)delete cur.prog[np];
+    // reordenar as que vinham depois
+    for(const k in cur.prog){if(cur.prog[k].prio&&+cur.prog[k].prio>old)cur.prog[k].prio=+cur.prog[k].prio-1}}
+  else{const max=Math.max(0,...Object.values(cur.prog).map(x=>+x.prio||0));cur.prog[np]=cur.prog[np]||{};cur.prog[np].prio=max+1}
+  S.fampipe=cur;renderFamNovos();
+  try{await S.db.doc('config/fampipe').set(cur)}catch(err){toast(dbErr(err),1)}
 });

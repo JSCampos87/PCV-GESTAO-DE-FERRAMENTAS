@@ -370,14 +370,27 @@ body.role-FAMAG #navFamag{display:inline-flex}
 .plano-colhead{background:var(--brand,#2f6fb5);color:#fff;padding:10px 14px;font-weight:700;font-size:16px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .plano-colhead .muted{color:rgba(255,255,255,.8)}
 .plano-list{padding:6px;display:flex;flex-direction:column;gap:5px;max-height:70vh;overflow:auto}
-.plano-card{display:flex;align-items:stretch;gap:8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);overflow:hidden}
-.plano-ord{background:var(--surface-2,#f5f9f6);color:var(--muted);font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;width:30px;flex:none}
-.plano-body{padding:6px 8px;display:flex;flex-direction:column;min-width:0;flex:1}
-.plano-body .mono{font-size:14px}
-.plano-ex{font-size:12px;font-weight:700;color:var(--ink)}
-.plano-loc{font-size:11.5px}
+.plano-card{display:flex;align-items:stretch;gap:0;border-radius:8px;border:1px solid var(--line);background:var(--bg);overflow:hidden;min-height:52px}
+.plano-ord{background:var(--surface-2,#f5f9f6);color:var(--muted);font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;width:34px;flex:none}
+.plano-body{padding:7px 10px;display:flex;flex-direction:column;justify-content:center;gap:1px;min-width:0;flex:1}
+.plano-body .mono{font-size:14px;line-height:1.2}
+.plano-ex{font-size:11.5px;font-weight:700;color:var(--muted)}
+.plano-loc{font-size:12px;line-height:1.2}
 .plano-card.pl-maq{border-left:4px solid #2f6fb5}.plano-card.pl-maq .plano-loc{color:#2f6fb5;font-weight:600}
 .plano-card.pl-arm{border-left:4px solid var(--ok,#2a9a5b)}.plano-card.pl-arm .plano-loc{color:var(--ok,#2a9a5b)}
 .plano-card.pl-pre{border-left:4px solid #e2a91b}.plano-card.pl-pre .plano-loc{color:#b8860b;font-weight:600}
 .plano-card.pl-rep{border-left:4px solid var(--warn,#d08700)}.plano-card.pl-rep .plano-loc{color:var(--warn,#d08700);font-weight:600}
 .plano-card.pl-unk{border-left:4px solid #bbb}.plano-card.pl-unk .plano-loc{color:#999}
+
+/* legenda das cores do plano */
+.plano-legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin:4px 0 12px;font-size:12.5px;align-items:center}
+.plano-legend b{font-weight:600;color:var(--muted);margin-right:4px}
+.plano-legend span{display:inline-flex;align-items:center;gap:5px}
+.plano-legend i{width:12px;height:12px;border-radius:3px;display:inline-block}
+.plano-more{width:100%;margin-top:4px;justify-content:center}
+/* prioridades FAMAG */
+.prio-badge{display:inline-block;padding:3px 10px;border-radius:999px;font-weight:700;font-size:13px;background:var(--brand,#2f6fb5);color:#fff}
+.prio-badge.click{cursor:pointer}
+.prio-badge.click:hover{background:var(--nok,#d0574a)}
+.prio-add{opacity:.7}
+.prio-add:hover{opacity:1}
