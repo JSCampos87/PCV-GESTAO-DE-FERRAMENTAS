@@ -19,11 +19,11 @@ function normCod(c){const m=String(c||'').toUpperCase().match(/[MST]\d{3,4}[A-Z]
 
 // extrair plano de um PDF
 function parsePlano(txt){
-  const maq=(txt.match(/M[aá]quina:\s*([A-Z0-9]+)/)||[])[1]||'';
+  const maq=(txt.match(/M[aá]quina:?\s*([A-Z0-9]+)/)||[])[1]||'';
   // percorrer o texto por blocos de ordem; em cada bloco, apanhar Nº Exemplares e o código do Desenho Técnico
   const seq=[];
   // dividir em segmentos por "Desenho Técnico"
-  const re=/N[ºo]\s*Exemplares:\s*(\d+)[\s\S]*?Desenho T[eé]cnico\s+\d+\s*-\s*([MST]\d{3,4}[A-Z])/g;
+  const re=/N[ºo]\s*Exemplares:?\s*(\d+)[\s\S]*?Desenho\s*T[eé]cnico\s*\d+\s*-\s*([MST]\d{3,4}[A-Z])/g;
   let m;while((m=re.exec(txt))){seq.push({ex:+m[1],cod:m[2]})}
   // agrupar consecutivos iguais (soma exemplares? não — mantém o maior/soma). Pedido: agrupar.
   const grouped=[];
