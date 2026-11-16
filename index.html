@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="css/app.css">
 <script src="js/vendor/xlsx.full.min.js"></script>
-<script>window.PCV_VENDOR='js/vendor/';window.PCV_VERSAO='44 · 16/11/2026';</script>
+<script>window.PCV_VENDOR='js/vendor/';window.PCV_VERSAO='45 · 16/11/2026';</script>
 <script src="config.js"></script>
 <script src="js/store.js"></script>
 </head>
@@ -245,7 +245,7 @@
 <!-- DEFINIÇÕES -->
 <section class="view" id="v-plano" hidden>
   <div class="mhead"><div><h2>Plano de produção</h2><p>Sequência de cortantes por máquina, a partir dos planos do SAP. Mostra o nº de exemplares e onde está cada cortante agora.</p></div>
-    <label class="btn pri" style="cursor:pointer" data-min="SUPV">Carregar planos (PDF)<input type="file" id="planoFiles" accept=".pdf" multiple hidden></label></div>
+    <button class="btn pri" id="planoBtn" data-min="SUPV">Carregar planos (PDF)</button><input type="file" id="planoFiles" accept="application/pdf,.pdf" multiple style="display:none"></div>
   <div id="planoStat" class="small muted"></div>
   <div id="planoBoard"></div>
 </section>

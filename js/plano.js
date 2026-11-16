@@ -33,18 +33,22 @@ function parsePlano(txt){
   return maq?{maq,seq:grouped}:null;
 }
 async function planoUpload(files){
-  const st=$('#planoStat');files=[...files].filter(f=>/\.pdf$/i.test(f.name));
-  if(!files.length){toast('Escolhe os PDFs dos planos.',1);return}
-  if(!needDb())return;
-  const maqs=[];let n=0;
+  const st=$('#planoStat');files=[...files].filter(f=>/\.pdf$/i.test(f.name)||f.type==='application/pdf');
+  if(!files.length){toast('Escolhe ficheiros PDF.',1);return}
+  if(st)st.innerHTML='<span class="spin"></span> A abrir os planos…';
+  const maqs=[];let n=0,erros=0;
   for(const f of files){n++;st.innerHTML=`<span class="spin"></span> A ler ${n}/${files.length}: ${esc(f.name)}`;
     try{const txt=await pdfText(f);const pl=parsePlano(txt);
       if(pl){const ex=maqs.find(x=>x.maq===pl.maq);if(ex)ex.seq=pl.seq;else maqs.push(pl)}
-    }catch(e){}}
+    }catch(e){erros++}}
+  if(!maqs.length){if(st)st.innerHTML='';toast('Não consegui ler nenhum plano. Confirma que são os PDFs do SAP (Plano de Máquinas).',1);return}
   // ordenar as máquinas por nome
   maqs.sort((a,b)=>a.maq.localeCompare(b.maq));
   const doc={maqs,ts:nowIso(),by:getName()||''};
-  try{await S.db.doc('config/plano').set(doc);S.plano=doc;st.textContent='';toast(`Plano atualizado: ${maqs.length} máquina(s).`);renderPlano()}
-  catch(e){st.textContent='';toast(dbErr(e),1)}
+  S.plano=doc;if(st)st.textContent='';renderPlano();
+  const tot=maqs.reduce((a,m)=>a+m.seq.length,0);
+  toast(`Plano carregado: ${maqs.length} máquina(s), ${tot} cortantes${erros?' ('+erros+' ficheiro(s) ignorado(s))':''}.`);
+  if(S.db){try{await S.db.doc('config/plano').set(doc)}catch(e){toast('Lido, mas não guardado na base: '+(e.message||e),1)}}
 }
-document.addEventListener('change',e=>{if(e.target.id==='planoFiles'){const fs=e.target.files;e.target.value='';if(fs.length)planoUpload(fs)}});
+document.addEventListener('click',e=>{if(e.target.id==='planoBtn'){const inp=$('#planoFiles');if(inp){inp.value='';inp.click()}}});
+document.addEventListener('change',e=>{if(e.target.id==='planoFiles'){const fs=[...e.target.files];e.target.value='';if(fs.length){planoUpload(fs)}else{toast('Nenhum ficheiro escolhido.',1)}}});
