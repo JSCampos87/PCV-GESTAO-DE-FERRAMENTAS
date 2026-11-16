@@ -96,6 +96,7 @@ async function initDb(){
   db.doc('config/checklist').onSnapshot(d=>{S.cl=d.exists?d.data():null;S.clExists=d.exists;refreshQualConfig()},()=>{});
   db.doc('config/pdfmail').onSnapshot(d=>{S.pdfMail=d.exists?d.data():null;if(typeof renderPdfIdx==='function')renderPdfIdx()},()=>{});
   db.doc('config/mailsync').onSnapshot(d=>{S.mailsync=d.exists?d.data():null;if(typeof renderMailBox==='function')renderMailBox()},()=>{});
+  db.doc('config/plano').onSnapshot(d=>{S.plano=d.exists?d.data():null;if(UI.view==='plano'&&typeof renderPlano==='function')renderPlano()},()=>{});
   db.doc('config/reqauth').onSnapshot(d=>{S.reqAuth=d.exists?(d.data().items||[]):[];if(UI.view==='requisicoes'&&typeof renderReqAuthBox==='function')renderReqAuthBox()},()=>{});
   db.doc('config/reqlog').onSnapshot(d=>{S.reqLog=d.exists?(d.data().items||[]):[]},()=>{});
   db.doc('config/fampipe').onSnapshot(d=>{S.fampipe=d.exists?d.data():null;if(UI.view==='famag'&&typeof renderFamag==='function')renderFamag()},()=>{});
@@ -188,6 +189,7 @@ function refreshAll(){
   if(UI.view==='operador'){if(UI.op==='hist')renderExitHist();if(UI.op==='kpi')renderExitKpi();if(UI.op==='nova')renderExitTool();if(UI.op==='param')renderOpParam()}
   if(UI.view==='famag'&&typeof renderFamag==='function')renderFamag();
   if(UI.view==='requisicoes'&&typeof renderReq==='function')renderReq();
+  if(UI.view==='plano'&&typeof renderPlano==='function')renderPlano();
   if(UI.view==='def'&&typeof renderDefs==='function')renderDefs();
   if(UI.view==='armazem')sync3D();
 }
@@ -834,7 +836,7 @@ const _initials=n=>String(n||'').trim().split(/\s+/).map(w=>w[0]||'').join('').s
 function renderChecklist(){
   const g=CL().groups;
   let _prevBy=null;
-  $('#qList').innerHTML=g.map((gr,gi)=>`<div class="cl-group"><h4><span class="n">${gi+1}.</span> ${esc(gr.name)}</h4>${gr.items.map((it,ii)=>{const k=gi+'.'+ii,a=Q.ans[k]||{};const showBy=a.r&&a.by&&a.by!==_prevBy;const ini=showBy?_initials(a.by):'';if(a.r&&a.by)_prevBy=a.by;return `<div class="cl-item" data-k="${k}"><span>${esc(it)}</span><div class="tri" role="group" aria-label="${esc(it)}"><button class="o" aria-pressed="${a.r==='OK'}" data-r="OK">OK</button><button class="n" aria-pressed="${a.r==='NOK'}" data-r="NOK">NOK</button><button class="a" aria-pressed="${a.r==='NA'}" data-r="NA">N/A</button><button class="apm" aria-pressed="${a.r==='APM'}" data-r="APM" title="A preparar na máquina">APM</button></div>${showBy?`<span class="ckby" title="${esc(a.by)}">${esc(ini)}</span>`:'<span class="ckby-sp"></span>'}${a.r==='NOK'?`<input class="cmt" type="text" data-c="${k}" value="${esc(a.c||'')}" placeholder="Descreve o problema (obrigatório)">`:''}</div>`}).join('')}</div>`).join('');
+  $('#qList').innerHTML=g.map((gr,gi)=>`<div class="cl-group"><h4><span class="n">${gi+1}.</span> ${esc(gr.name)}</h4>${gr.items.map((it,ii)=>{const k=gi+'.'+ii,a=Q.ans[k]||{};const showBy=a.r&&a.by&&a.by!==_prevBy;const ini=showBy?_initials(a.by):'';if(a.r&&a.by)_prevBy=a.by;return `<div class="cl-item" data-k="${k}"><span>${esc(it)}</span><div class="tri" role="group" aria-label="${esc(it)}"><button class="o" aria-pressed="${a.r==='OK'}" data-r="OK">OK</button><button class="n" aria-pressed="${a.r==='NOK'}" data-r="NOK">NOK</button><button class="a" aria-pressed="${a.r==='NA'}" data-r="NA">N/A</button><button class="apm" aria-pressed="${a.r==='APM'}" data-r="APM" title="A preparar na máquina">APM</button>${showBy?`<span class="ckby" title="${esc(a.by)}">${esc(ini)}</span>`:''}</div>${a.r==='NOK'?`<input class="cmt" type="text" data-c="${k}" value="${esc(a.c||'')}" placeholder="Descreve o problema (obrigatório)">`:''}</div>`}).join('')}</div>`).join('');
   verdict();
 }
 function verdict(){

@@ -41,7 +41,7 @@ function renderFamNovos(){
   if(fe)list=list.filter(p=>(p.estado||'em curso').toUpperCase()===fe.toUpperCase()||(fe==='em curso'&&!p.estado));
   if(fatr)list=list.filter(p=>p.dataAtual&&Date.parse(p.dataAtual)<Date.now()&&(p.estado||'')!=='OK'&&(p.estado||'')!=='ENTREGUE');
   if(ftop)list=list.filter(p=>top.has(norm((p.ref.match(/[STM]\d{4}[A-Z]/)||[p.ref])[0])));
-  list.sort((a,b)=>{const pa=+((prog[a.np]||{}).prio||999),pb=+((prog[b.np]||{}).prio||999);return pa-pb||String(a.dataAtual).localeCompare(String(b.dataAtual))});
+  list.sort((a,b)=>{const da=a.dataAtual||'9999',db=b.dataAtual||'9999';return da.localeCompare(db)});
   if($('#fmgNovosN'))$('#fmgNovosN').textContent=`${list.length} cortante(s)`;
   el.innerHTML=list.length?`<div class="tw"><table class="t"><thead><tr><th></th><th>Nº Prod.</th><th>Código</th><th>Nome comercial</th><th>Data original</th><th>Data prevista</th><th>Estado</th><th>Observações</th></tr></thead><tbody>${list.map(famRow).join('')}</tbody></table></div>`:'<p class="fempty">Sem resultados.</p>';
 }

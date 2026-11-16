@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="css/app.css">
 <script src="js/vendor/xlsx.full.min.js"></script>
-<script>window.PCV_VENDOR='js/vendor/';window.PCV_VERSAO='42 · 13/11/2026';</script>
+<script>window.PCV_VENDOR='js/vendor/';window.PCV_VERSAO='44 · 16/11/2026';</script>
 <script src="config.js"></script>
 <script src="js/store.js"></script>
 </head>
@@ -22,6 +22,7 @@
     <button data-go="qualidade" data-min="PCV">Qualidade PCV</button>
     <button data-go="fluxo">Fluxo</button>
     <button data-go="operador">Operador</button>
+    <button data-go="plano" data-min="PCV" id="navPlano">Plano de produção</button>
     <button data-go="requisicoes" data-min="PCV" id="navReq">Requisições</button>
     <button data-go="famag" data-min="PCV" id="navFamag">FAMAG</button>
     <button data-go="def" data-min="SUPV">Definições</button>
@@ -242,6 +243,12 @@
 </section>
 
 <!-- DEFINIÇÕES -->
+<section class="view" id="v-plano" hidden>
+  <div class="mhead"><div><h2>Plano de produção</h2><p>Sequência de cortantes por máquina, a partir dos planos do SAP. Mostra o nº de exemplares e onde está cada cortante agora.</p></div>
+    <label class="btn pri" style="cursor:pointer" data-min="SUPV">Carregar planos (PDF)<input type="file" id="planoFiles" accept=".pdf" multiple hidden></label></div>
+  <div id="planoStat" class="small muted"></div>
+  <div id="planoBoard"></div>
+</section>
 <section class="view" id="v-requisicoes" hidden>
   <div class="mhead"><div><h2>Requisições de material</h2><p>Escolhe os materiais e as quantidades, e envia a requisição ao departamento de compras. As chapas de 1&nbsp;mm precisam de autorização.</p></div><button class="btn pri" id="reqCartBtn">🛒 Carrinho (<span id="reqCartN">0</span>)</button></div>
   <div id="reqAuthBox"></div>
@@ -380,6 +387,7 @@
 <script src="js/flow.js"></script>
 <script src="js/famag.js"></script>
 <script src="js/req.js"></script>
+<script src="js/plano.js"></script>
 <script src="js/boot.js"></script>
 </body>
 </html>
