@@ -10,9 +10,9 @@ function renderPlano(){
   const byCod=new Map();for(const t of S.tools.values())for(const k of toolKeys(t))if(!byCod.has(k))byCod.set(k,t);
   const estInfo=t=>{if(!t)return{txt:'não encontrado',cls:'pl-unk'};
     return {maquina:{txt:'na máquina '+(t.maq||''),cls:'pl-maq'},armazem:{txt:t.pos||'em armazém',cls:'pl-arm'},arrumar:{txt:'no pré-corte',cls:'pl-pre'},reparacao:{txt:'em reparação',cls:'pl-rep'},sucatado:{txt:'sucatado',cls:'pl-unk'}}[t.est]||{txt:t.est,cls:'pl-arm'}};
-  el.innerHTML=`<div class="plano-legend"><b>Onde está:</b><span><i style="background:#2a9a5b"></i>em armazém (posição)</span><span><i style="background:#2f6fb5"></i>na máquina</span><span><i style="background:#e2a91b"></i>no pré-corte</span><span><i style="background:#d08700"></i>em reparação</span><span><i style="background:#bbb"></i>não encontrado</span></div><div class="plano-grid">${plan.maqs.map(m=>`<div class="plano-col"><div class="plano-colhead">${esc(m.maq)}<span class="small muted">${m.seq.length} cortantes</span></div>
+  el.innerHTML=`<div class="plano-legend"><b>Onde está:</b><span><i style="background:#2a9a5b"></i>em armazém (posição)</span><span><i style="background:#2f6fb5"></i>na máquina</span><span><i style="background:#e2a91b"></i>no pré-corte</span><span><i style="background:#d08700"></i>em reparação</span><span><i style="background:#bbb"></i>não encontrado</span></div><div class="plano-grid">${plan.maqs.map(m=>`<div class="plano-col"><div class="plano-colhead">${esc(m.maq)}<span class="small muted">${m.seq.length} cortantes${m.totMin?' · '+fmtDur(m.totMin):''}</span></div>
     <div class="plano-list" data-maq="${esc(m.maq)}">${m.seq.map((s,i)=>{const t=byCod.get(normCod(s.cod));const e=estInfo(t);
-      return `<div class="plano-card ${e.cls}"${i>=10?' hidden data-extra':''}><div class="plano-ord">${i+1}</div><div class="plano-body"><b class="mono">${esc(s.cod)}</b><span class="plano-ex">${s.ex} ex.</span><span class="plano-loc">${esc(e.txt)}</span></div></div>`}).join('')}${m.seq.length>10?`<button class="btn sm plano-more" data-more="${esc(m.maq)}">Ver as outras ${m.seq.length-10} ▾</button>`:''}</div></div>`).join('')}</div>
+      return `<div class="plano-card ${e.cls}"${i>=10?' hidden data-extra':''}><div class="plano-ord">${i+1}</div><div class="plano-body"><b class="mono">${esc(s.cod)}</b><span class="plano-ex">${s.ex} ex.${s.dur?' · '+fmtDur(s.dur):''}</span><span class="plano-loc">${esc(e.txt)}</span></div></div>`}).join('')}${m.seq.length>10?`<button class="btn sm plano-more" data-more="${esc(m.maq)}">Ver as outras ${m.seq.length-10} ▾</button>`:''}</div></div>`).join('')}</div>
     <p class="small muted" style="margin-top:8px">${plan.ts?'Planos carregados em '+fmtDT(plan.ts):''}${plan.by?' · '+esc(plan.by):''}</p>`;
 }
 function normCod(c){const m=String(c||'').toUpperCase().match(/[MST]\d{3,4}[A-Z]/);return m?m[0]:String(c||'').toUpperCase()}
@@ -20,26 +20,35 @@ function normCod(c){const m=String(c||'').toUpperCase().match(/[MST]\d{3,4}[A-Z]
 // extrair plano de um PDF
 function parsePlano(txt){
   const maq=(txt.match(/M[aá]quina:?\s*([A-Z0-9]+)/)||[])[1]||'';
-  // percorrer o texto por blocos de ordem; em cada bloco, apanhar Nº Exemplares e o código do Desenho Técnico
+  // dividir o texto por "Ordem:" — cada ordem tem os 2 timestamps (início/fim) e lá dentro o cortante + exemplares
+  const parseDt=(d,h)=>{const[dd,mm,yy]=d.split('.');return new Date(yy+'-'+mm+'-'+dd+'T'+h).getTime()};
   const seq=[];
-  // dividir em segmentos por "Desenho Técnico"
-  const re=/N[ºo]\s*Exemplares:?\s*(\d+)[\s\S]*?Desenho\s*T[eé]cnico\s*\d+\s*-\s*([MST]\d{3,4}[A-Z])/g;
-  let m;while((m=re.exec(txt))){seq.push({ex:+m[1],cod:m[2]})}
-  // agrupar consecutivos iguais (soma exemplares? não — mantém o maior/soma). Pedido: agrupar.
+  const blocos=txt.split(/(?=Ordem:\s*\d)/);
+  for(const bl of blocos){
+    const to=bl.match(/Ordem:\s*\d+\s+(\d{2}\.\d{2}\.\d{4})\s*-\s*(\d{2}:\d{2}:\d{2})\s+(\d{2}\.\d{2}\.\d{4})\s*-\s*(\d{2}:\d{2}:\d{2})/);
+    let dur=0;if(to){dur=Math.max(0,Math.round((parseDt(to[3],to[4])-parseDt(to[1],to[2]))/60000))}
+    // cada cortante dentro desta ordem (pode haver vários desenhos técnicos no mesmo bloco)
+    const re=/N[ºo]\s*Exemplares:?\s*(\d+)[\s\S]*?Desenho\s*T[eé]cnico\s*\d+\s*-\s*([MST]\d{3,4}[A-Z])/g;
+    let m,first=true;
+    while((m=re.exec(bl))){seq.push({ex:+m[1],cod:m[2],dur:first?dur:0});first=false}
+  }
+  // agrupar consecutivos iguais: soma as durações
   const grouped=[];
   for(const s of seq){const last=grouped[grouped.length-1];
-    if(last&&normCod(last.cod)===normCod(s.cod))last.ex=Math.max(last.ex,s.ex);  // mesmo cortante seguido: 1 entrada
+    if(last&&normCod(last.cod)===normCod(s.cod)){last.ex=Math.max(last.ex,s.ex);last.dur=(last.dur||0)+(s.dur||0)}
     else grouped.push({...s})}
-  return maq?{maq,seq:grouped}:null;
+  const totMin=grouped.reduce((a,s)=>a+(s.dur||0),0);
+  return maq?{maq,seq:grouped,totMin}:null;
 }
+function fmtDur(min){if(!min)return '';const h=Math.floor(min/60),m=min%60;return h?(h+'h'+(m?' '+m+'m':'')):(m+'m')}
 async function planoUpload(files){
   const st=$('#planoStat');files=[...files].filter(f=>/\.pdf$/i.test(f.name)||f.type==='application/pdf');
   if(!files.length){toast('Escolhe ficheiros PDF.',1);return}
   if(st)st.innerHTML='<span class="spin"></span> A abrir os planos…';
-  const maqs=[];let n=0,erros=0;
+  const maqs=(S.plano&&Array.isArray(S.plano.maqs))?S.plano.maqs.map(m=>({...m})):[];let n=0,erros=0,novas=0;
   for(const f of files){n++;st.innerHTML=`<span class="spin"></span> A ler ${n}/${files.length}: ${esc(f.name)}`;
     try{const txt=await pdfText(f);const pl=parsePlano(txt);
-      if(pl){const ex=maqs.find(x=>x.maq===pl.maq);if(ex)ex.seq=pl.seq;else maqs.push(pl)}
+      if(pl){const i=maqs.findIndex(x=>x.maq===pl.maq);if(i>=0)maqs[i]=pl;else{maqs.push(pl);novas++}}
     }catch(e){erros++}}
   if(!maqs.length){if(st)st.innerHTML='';toast('Não consegui ler nenhum plano. Confirma que são os PDFs do SAP (Plano de Máquinas).',1);return}
   // ordenar as máquinas por nome

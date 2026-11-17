@@ -394,3 +394,11 @@ body.role-FAMAG #navFamag{display:inline-flex}
 .prio-badge.click:hover{background:var(--nok,#d0574a)}
 .prio-add{opacity:.7}
 .prio-add:hover{opacity:1}
+.faflag-btn{color:var(--nok,#d0574a);border-color:color-mix(in srgb,var(--nok,#d0574a) 40%,transparent)}
+.faflag-btn:hover{background:color-mix(in srgb,var(--nok,#d0574a) 10%,transparent)}
+.fcard .fnote{display:block;color:#8a6d00;background:#fffbe6;border-radius:4px;padding:2px 6px;margin:2px 0;font-size:11px}
+/* chapas e separações na lista do armazém */
+.chapa-tag{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;color:#fff;vertical-align:middle;margin-left:4px}
+.sep-tag{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600;background:#eef2f5;color:#55606a;vertical-align:middle;margin-left:4px}
+.chip.on{background:var(--ok,#2a9a5b);color:#fff;border-color:var(--ok,#2a9a5b)}
+#tipoChips{margin-right:10px}

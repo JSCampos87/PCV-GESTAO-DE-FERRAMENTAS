@@ -99,6 +99,7 @@ async function initDb(){
   db.doc('config/plano').onSnapshot(d=>{S.plano=d.exists?d.data():null;if(UI.view==='plano'&&typeof renderPlano==='function')renderPlano()},()=>{});
   db.doc('config/reqauth').onSnapshot(d=>{S.reqAuth=d.exists?(d.data().items||[]):[];if(UI.view==='requisicoes'&&typeof renderReqAuthBox==='function')renderReqAuthBox()},()=>{});
   db.doc('config/reqlog').onSnapshot(d=>{S.reqLog=d.exists?(d.data().items||[]):[]},()=>{});
+  db.doc('config/famalerts').onSnapshot(d=>{S.famAlerts=d.exists?(d.data().items||[]):[];if(UI.view==='famag'&&typeof renderFamAlertsBanner==='function')renderFamAlertsBanner()},()=>{});
   db.doc('config/fampipe').onSnapshot(d=>{S.fampipe=d.exists?d.data():null;if(UI.view==='famag'&&typeof renderFamag==='function')renderFamag()},()=>{});
   db.doc('config/pdfcont').onSnapshot(d=>{S.pdfcont=d.exists?d.data():null;S.pdfMap=null;refreshAll()},()=>{});
   db.doc('config/pdfidx').onSnapshot(d=>{S.pdfidx=d.exists?d.data():null;S.pdfMap=null;refreshAll();if(typeof renderPdfIdx==='function')renderPdfIdx()},()=>{});
@@ -164,7 +165,7 @@ function findHeader(rows,tests,minHits){
 }
 
 /* ============ navegação ============ */
-const UI={view:'inicio',arm:'lista',qual:'nova',comp:'ped',op:'nova',fmg:'novos',acc:'',page:0,hl:'',openOrder:null};
+const UI={view:'inicio',arm:'lista',qual:'nova',comp:'ped',op:'nova',fmg:'novos',acc:'',tipo:'cortante',page:0,hl:'',openOrder:null};
 function go(v,sub){
   UI.view=v;$$('.view').forEach(s=>s.hidden=s.id!=='v-'+v);
   $$('nav.main button').forEach(b=>b.setAttribute('aria-current',b.dataset.go===v));
@@ -255,9 +256,17 @@ $('#ncList').addEventListener('click',e=>{const r=e.target.closest('[data-nc]');
 const PAGE=100;
 function locals(){const s=new Set();for(const t of S.tools.values())if(t.local)s.add(t.local);for(const p of Object.values(S.positions))if(p.l)s.add(p.l);return [...s].sort((a,b)=>a.localeCompare(b,'pt',{numeric:true}))}
 function fillLocalSelect(sel,allLabel){const cur=sel.value;sel.innerHTML=`<option value="">${allLabel}</option>`+locals().map(l=>`<option>${esc(l)}</option>`).join('');sel.value=cur}
+const CHAPA_COR={Vermelho:'#d0574a',Azul:'#2f6fb5','Azul claro':'#5aa9e6',Amarelo:'#e2b600',Rosa:'#e05c9e',Verde:'#2a9a5b',Preto:'#333',Branco:'#999',Laranja:'#e8833a',Cinza:'#888'};
+function tipoBadge(t){
+  if(t.tipo==='chapa'){const c=t.chapaCor||'',bg=CHAPA_COR[c]||'#888';
+    return c?' <span class="chapa-tag" style="background:'+bg+'" title="Chapa '+esc(c)+' '+esc(t.chapaNum||'')+'">'+esc(c)+(t.chapaNum?' '+esc(t.chapaNum):'')+'</span>':' <span class="pill p-enc">chapa</span>';}
+  if(t.tipo==='separacao')return ' <span class="sep-tag" title="Separação">separação'+(t.sepLoc?' · '+esc(t.sepLoc):'')+'</span>';
+  return '';
+}
 function filteredTools(){
   const q=norm($('#q').value),loc=$('#fLocal').value,est=$('#fEst').value;
   let a=[...S.tools.values()];
+  {const tp=UI.tipo||'';if(tp==='cortante')a=a.filter(t=>!t.tipo||t.tipo==='cortante');else if(tp)a=a.filter(t=>t.tipo===tp)}
   {const B=t=>accOf(t,'braille'),R=t=>accOf(t,'relevo');if(UI.acc==='br')a=a.filter(B);else if(UI.acc==='rl')a=a.filter(R);else if(UI.acc==='brrl')a=a.filter(t=>B(t)&&R(t));}
   if(loc)a=a.filter(t=>t.local===loc);
   {const fp=$('#fPdf')?.value;if(fp==='sem')a=a.filter(t=>!pdfUrl(t,'cortante'));else if(fp==='com')a=a.filter(t=>!!pdfUrl(t,'cortante'))}
@@ -291,12 +300,16 @@ function pdfIcon(t,kind,label){const u=pdfUrl(t,kind);if(u)return `<a class="pdf
 function accCell(t,kind){const it=accOf(t,kind);if(!it)return '<span class="muted">—</span>';return `<span class="acc"><span class="acc-k">${kind==='braille'?'Braille':'Relevo'}</span><span class="mono${it.pos?'':' muted'}">${esc(it.pos||'posição ?')}</span>${pdfIcon(t,kind,kind==='braille'?'Braille':'Relevo')}</span>`}
 function renderTools(){
   let nb=0,nr=0,nall=0;for(const t of S.tools.values())if(t.est!=='sucatado'){nall++;if(accOf(t,'braille'))nb++;if(accOf(t,'relevo'))nr++}
+  {const _all=[...S.tools.values()].filter(t=>t.est!=='sucatado');
+   const _nCh=_all.filter(t=>t.tipo==='chapa').length,_nSp=_all.filter(t=>t.tipo==='separacao').length;
+   const _tp=[['cortante','Cortantes']];if(_nCh)_tp.push(['chapa','Chapas ('+_nCh+')']);if(_nSp)_tp.push(['separacao','Separações ('+_nSp+')']);
+   const el=$('#tipoChips');if(el)el.innerHTML=_tp.length>1?_tp.map(([k,lab])=>'<button class="chip'+((UI.tipo||'cortante')===k?' on':'')+'" data-tipo="'+k+'">'+lab+'</button>').join(''):'';}
   $('#typeChips').innerHTML=[['','Todos os cortantes',nall],['br','Com Braille',nb],['rl','Com relevo',nr]].map(([k,v,n])=>`<button class="chip" data-acc="${k}" aria-pressed="${(UI.acc||'')===k}">${v}<span class="n">${n}</span></button>`).join('');
   fillLocalSelect($('#fLocal'),'Todos os locais');
   const a=filteredTools();UI.hl3d=norm($('#q').value).length>=2&&a.length<=12?a.map(t=>t.pos).filter(Boolean):[];const pages=Math.max(1,Math.ceil(a.length/PAGE));UI.page=Math.min(UI.page,pages-1);
   const rows=a.slice(UI.page*PAGE,(UI.page+1)*PAGE);
   $('#toolRows').innerHTML=!S.loaded.tools?`<tr><td colspan="7" class="empty">${S.db?'A carregar ferramentas…':'Sem ligação à base de dados.'}</td></tr>`:
-    rows.length?rows.map(t=>`<tr class="click" data-tool="${esc(t.id)}"><td class="code"><span class="acc">${esc(t.cod)}${pdfIcon(t,'cortante','desenho do cortante')}${nPecas(t)>1?` <span class="pill p-maquina" title="Conjunto de ${nPecas(t)} peças">+${nPecas(t)-1}</span>`:''}</span></td><td class="pos">${esc(t.pos||'—')}${t.local?`<div class="small muted" style="font-family:var(--f-sans)">${esc(t.local)}</div>`:''}</td><td>${esc(t.cli||t.ncli||'')}</td><td class="wrap">${esc(t.den||'')}${t.notas?`<div class="small muted">${esc(t.notas)}</div>`:''}</td><td class="accc">${accCell(t,'braille')}</td><td class="accc">${accCell(t,'relevo')}</td><td>${estPill(t)}${vidaTag(t)}${t.ult?`<div class="small muted mono" title="Última data" style="margin-top:3px">${fmtD(t.ult)}</div>`:''}</td></tr>`).join(''):
+    rows.length?rows.map(t=>`<tr class="click" data-tool="${esc(t.id)}"><td class="code"><span class="acc">${esc(t.cod)}${pdfIcon(t,'cortante','desenho do cortante')}${nPecas(t)>1?` <span class="pill p-maquina" title="Conjunto de ${nPecas(t)} peças">+${nPecas(t)-1}</span>`:''}${tipoBadge(t)}</span></td><td class="pos">${esc(t.pos||'—')}${t.local?`<div class="small muted" style="font-family:var(--f-sans)">${esc(t.local)}</div>`:''}</td><td>${esc(t.cli||t.ncli||'')}</td><td class="wrap">${esc(t.den||'')}${t.notas?`<div class="small muted">${esc(t.notas)}</div>`:''}</td><td class="accc">${accCell(t,'braille')}</td><td class="accc">${accCell(t,'relevo')}</td><td>${estPill(t)}${vidaTag(t)}${t.ult?`<div class="small muted mono" title="Última data" style="margin-top:3px">${fmtD(t.ult)}</div>`:''}</td></tr>`).join(''):
     `<tr><td colspan="7" class="empty">${S.tools.size?'Nenhum cortante corresponde à pesquisa.':'Ainda não há cortantes registados. Usa “+ Novo cortante” ou importa um Excel em “Importar / exportar”.'+(window.PCV_SEED&&S.canWrite?'<div style="margin-top:12px"><button class="btn pri" id="seedGo">Carregar base inicial (lista CORTANTES PCV)</button></div>':S.canWrite?'<div style="margin-top:8px">Para carregar a base inicial: <b>Importar / exportar › Repor cópia…</b> e escolher o ficheiro <span class="mono">PCV_base_inicial.json</span>.</div>':'')}</td></tr>`;
   if(typeof sync3D==='function')sync3D();
   $('#pager').innerHTML=`<span>${a.length} ${a.length===1?'cortante':'cortantes'}</span>`+(pages>1?`<button class="btn sm" data-pg="-1" ${UI.page?'':'disabled'}>‹</button><span class="mono">${UI.page+1}/${pages}</span><button class="btn sm" data-pg="1" ${UI.page<pages-1?'':'disabled'}>›</button>`:'');
