@@ -8,6 +8,7 @@ const isFamag=()=>ROLE==='FAMAG';
 
 function renderFamag(){
   if($('#navFamag'))$('#navFamag').style.display=(isFamag()||roleAtLeast('PCV'))?'':'none';
+  if(typeof renderFamAlertsBanner==='function')renderFamAlertsBanner();
   if(UI.fmg==='novos')renderFamNovos();
   else if(UI.fmg==='reparacoes')renderFamReps();
   else if(UI.fmg==='top20')renderFamTop();
@@ -17,7 +18,7 @@ function famRow(p){
   const dias=p.dataAtual?Math.round((Date.parse(p.dataAtual)-Date.now())/864e5):null;
   const atraso=dias!=null&&dias<0&&(p.estado||'')!=='OK'&&(p.estado||'')!=='ENTREGUE';
   const pr=(fampipe().prog[p.np]||{});
-  const canPrio=!isFamag()&&roleAtLeast('PCV'); // a GLP (Hinojosa) marca prioridades
+  const canPrio=isFamag()||roleAtLeast('SUPV'); // FAMAG e Supervisão marcam prioridades; PCV só vê
   const prioCell=pr.prio
     ? `<span class="prio-badge${canPrio?' click':''}" ${canPrio?`data-prio="${esc(p.np)}" title="Clicar para tirar a prioridade"`:''}>P${esc(pr.prio)}</span>`
     : (canPrio?`<button class="btn sm prio-add" data-prio="${esc(p.np)}" title="Dar prioridade">+ prioridade</button>`:'<span class="muted">—</span>');
@@ -29,7 +30,7 @@ function famRow(p){
     <td class="mono small">${esc(p.inicio||'—')}</td>
     <td>${isFamag()?`<input type="date" class="fmg-in" data-ff="dataAtual" value="${esc(p.dataAtual||'')}">`:`<span class="mono ${atraso?'late':''}">${esc(p.dataAtual||'—')}</span>`}</td>
     <td><span class="pill ${({'OK':'p-ok','SUSPENSO':'p-rep','ENTREGUE':'p-arm'})[p.estado]||'p-enc'}">${esc(p.estado||'em curso')}</span></td>
-    <td>${isFamag()?`<input type="text" class="fmg-in" data-ff="obs" value="${esc(p.obs||'')}" placeholder="Observação…">`:esc(p.obs||'')}</td>
+    <td>${isFamag()?`<input type="text" class="fmg-in" data-ff="obs" value="${esc(p.obs||'')}" placeholder="Observação…"><button class="btn sm faflag-btn" style="margin-top:4px" data-faflag="${esc(p.np)}" data-fakind="fabrico" data-falabel="Em fabrico ${esc(p.ref)} (nº ${esc(p.np)})">⚠ Referência errada?</button>`:esc(p.obs||'')}</td>
   </tr>`;
 }
 function renderFamNovos(){
@@ -63,7 +64,7 @@ function renderFamReps(){
   el.innerHTML=reps.length?`<div class="tw"><table class="t"><thead><tr><th>Cortante</th><th>Cliente</th><th>Enviado</th><th>Vida (batidas)</th><th>Motivo</th><th></th></tr></thead><tbody>${reps.map(t=>{
     const bat=t.folhas||0,done=t.repFeito;
     return `<tr data-frep="${esc(t.id)}"><td class="code">${esc(t.cod)}</td><td>${esc((t.cli||'').slice(0,26))}</td><td class="mono small">${t.repDesde?fmtD(t.repDesde):'—'}</td><td class="mono">${bat.toLocaleString('pt-PT')}</td><td>${esc(t.repMot||'—')}</td>
-    <td>${done?`<span class="pill p-ok" title="${esc(t.repObs||'')}">Reparado ✓</span>`:(isFamag()?`<button class="btn sm pri" data-frepok="${esc(t.id)}">Marcar reparado</button>`:'<span class="small muted">a reparar</span>')}</td></tr>`}).join('')}</tbody></table></div>`:'<p class="fempty">Nenhum cortante em reparação.</p>';
+    <td>${done?`<span class="pill p-ok" title="${esc(t.repObs||'')}">Reparado ✓</span>`:(isFamag()?`<button class="btn sm pri" data-frepok="${esc(t.id)}">Marcar reparado</button> <button class="btn sm faflag-btn" data-faflag="${esc(t.id)}" data-fakind="reparacao" data-falabel="Reparação ${esc(t.cod)}">⚠ Problema</button>`:'<span class="small muted">a reparar</span>')}</td></tr>`}).join('')}</tbody></table></div>`:'<p class="fempty">Nenhum cortante em reparação.</p>';
 }
 document.addEventListener('click',async e=>{const b=e.target.closest('[data-frepok]');if(!b||!isFamag())return;
   const t=S.tools.get(b.dataset.frepok);if(!t)return;
@@ -121,7 +122,7 @@ document.addEventListener('change',async e=>{if(e.target.id!=='fmgXls'||!isFamag
 
 // prioridades: a GLP (Hinojosa) clica para dar/tirar
 document.addEventListener('click',async e=>{const b=e.target.closest('[data-prio]');if(!b)return;
-  if(isFamag()||!roleAtLeast('PCV'))return;
+  if(!isFamag()&&!roleAtLeast('SUPV'))return;
   if(!needDb())return;
   const np=b.dataset.prio,cur=fampipe();cur.prog=cur.prog||{};
   const has=cur.prog[np]&&cur.prog[np].prio;
@@ -131,4 +132,42 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-prio
   else{const max=Math.max(0,...Object.values(cur.prog).map(x=>+x.prio||0));cur.prog[np]=cur.prog[np]||{};cur.prog[np].prio=max+1}
   S.fampipe=cur;renderFamNovos();
   try{await S.db.doc('config/fampipe').set(cur)}catch(err){toast(dbErr(err),1)}
+});
+/* ============ FAMAG assinala problema → alerta na app da GLP (v47) ============ */
+function famAlert(kind,id,label){
+  const ov=document.createElement('div');ov.className='ckmodal';ov.style.zIndex='95';
+  ov.innerHTML=`<div class="ckbox" style="max-width:480px"><div class="ckhead"><div class="grow"><h3>Assinalar problema</h3><p class="small muted">${esc(label)}</p></div><button class="btn sm" id="faX">Fechar</button></div>
+    <label class="f"><span>O que está errado? (ex.: referência trocada, cortante não é este…)</span><textarea id="faMsg" rows="3" placeholder="Descreve o problema para a GLP corrigir"></textarea></label>
+    <div class="row" style="margin-top:12px"><button class="btn pri" id="faOk">Enviar à GLP</button><button class="btn" id="faNo">Cancelar</button></div></div>`;
+  document.body.append(ov);const close=()=>ov.remove();
+  ov.querySelector('#faX').onclick=ov.querySelector('#faNo').onclick=close;
+  ov.addEventListener('click',e=>{if(e.target===ov)close()});
+  ov.querySelector('#faMsg').focus();
+  ov.querySelector('#faOk').onclick=async()=>{
+    const msg=ov.querySelector('#faMsg').value.trim();if(!msg){ov.querySelector('#faMsg').focus();return}
+    if(!needDb()){close();return}
+    const rec={id:'FA'+uid(),ts:nowIso(),by:getName()||'FAMAG',kind,ref:id,label,msg,estado:'aberto'};
+    const list=[...(S.famAlerts||[]),rec];
+    try{await S.db.doc('config/famalerts').set({items:list});S.famAlerts=list}catch(e){toast(dbErr(e),1);return}
+    if(EJ())try{await sendMail(['joao.campos@graphicsleader.pt','precortevinco@graphicsleader.pt'],`[FAMAG] Problema assinalado: ${label}`,`A FAMAG assinalou um problema:\n\n${label}\n\n"${msg}"\n\nVer na app (alerta pendente).`)}catch{}
+    toast('Problema enviado à GLP. Obrigado pelo aviso.');close();if(typeof renderFamag==='function')renderFamag();
+  };
+}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-faflag]');if(!b)return;
+  famAlert(b.dataset.fakind,b.dataset.faflag,b.dataset.falabel||b.dataset.faflag)});
+
+/* alerta na app da GLP (PCV+): banner com os problemas abertos */
+function renderFamAlertsBanner(){
+  const host=$('#famAlertHost');if(!host)return;
+  if(isFamag()){host.innerHTML='';return}
+  const open=(S.famAlerts||[]).filter(a=>a.estado==='aberto');
+  if(!open.length){host.innerHTML='';return}
+  host.innerHTML=`<div class="panel" style="border-color:var(--nok);background:#fdf0ee">
+    <b>⚠ ${open.length} problema(s) assinalado(s) pela FAMAG</b>
+    ${open.map(a=>`<div class="row" style="margin-top:6px;gap:8px;flex-wrap:wrap"><span class="grow"><b>${esc(a.label)}</b> — "${esc(a.msg)}" <span class="small muted">· ${fmtDT(a.ts)}</span></span><button class="btn sm" data-faresolve="${esc(a.id)}">Resolvido</button></div>`).join('')}</div>`;
+}
+document.addEventListener('click',async e=>{const b=e.target.closest('[data-faresolve]');if(!b)return;
+  if(isFamag()||!needDb())return;
+  const list=(S.famAlerts||[]).map(a=>a.id===b.dataset.faresolve?{...a,estado:'resolvido',resTs:nowIso()}:a);
+  try{await S.db.doc('config/famalerts').set({items:list});S.famAlerts=list;renderFamAlertsBanner()}catch(err){toast(dbErr(err),1)}
 });

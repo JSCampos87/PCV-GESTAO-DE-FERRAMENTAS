@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="css/app.css">
 <script src="js/vendor/xlsx.full.min.js"></script>
-<script>window.PCV_VENDOR='js/vendor/';window.PCV_VERSAO='46 · 16/11/2026';</script>
+<script>window.PCV_VENDOR='js/vendor/';window.PCV_VERSAO='51 · 17/11/2026';</script>
 <script src="config.js"></script>
 <script src="js/store.js"></script>
 </head>
@@ -92,7 +92,7 @@
   </div>
   <div data-pane="lista" class="stack">
     <div class="row">
-      <div class="chips" id="typeChips"></div><span class="grow"></span>
+      <div class="chips" id="tipoChips"></div><div class="chips" id="typeChips"></div><span class="grow"></span>
       <button class="btn sm" id="expXls" data-min="SUPV">Exportar Excel</button><button class="btn sm" id="expPdf" data-min="SUPV">Exportar PDF</button>
     </div>
     <div class="grid-f">
@@ -256,6 +256,7 @@
 </section>
 <section class="view" id="v-famag" hidden>
   <div class="famag-head"><img class="famag-logo-lg" src="img/famag.png" alt="FAMAG"><div><h2>Portal FAMAG</h2><p class="muted">Cortantes e ferramentas em fabrico e reparação para a Hinojosa · Pré-corte e vinco</p></div></div>
+  <div id="famAlertHost"></div>
   <div class="tabs" role="tablist" data-tabs="fmg">
     <button role="tab" data-sub="novos">Em fabrico</button>
     <button role="tab" data-sub="reparacoes">Reparações</button>
