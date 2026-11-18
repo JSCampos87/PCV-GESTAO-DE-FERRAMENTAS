@@ -337,7 +337,7 @@ async function mailNoPdf(manual){
     if(!manual){if(S.pdfMail&&S.pdfMail.sig===sig)return;if(S.pdfMail?.ts&&Date.now()-Date.parse(S.pdfMail.ts)<7*864e5)return;if(!mailOn())return}
     if(!mailOn()){toast('Envio de emails não configurado (Outlook ou EmailJS).',1);return}
     if(!a.length&&!manual)return;
-    const MAX=500,lines=a.slice(0,MAX).map(t=>[t.pos||'(sem posição)',t.cod,t.cli||t.den||'',EST[t.est||'armazem']].join(' · '));
+    const MAX=120,lines=a.slice(0,MAX).map(t=>[t.pos||'(sem posição)',t.cod,t.cli||t.den||'',EST[t.est||'armazem']].join(' · '));
     const body=`Cortantes ativos sem PDF associado: ${a.length}\n(posição · código · cliente · estado)\n\n`+lines.join('\n')+(a.length>MAX?`\n\n… e mais ${a.length-MAX}. A lista completa está na app: Armazém › Cortantes › filtro "PDF do cortante: Sem PDF" › Exportar Excel.`:'')+
       `\n\nOs PDFs são ligados pelo código no nome do ficheiro (ex.: S1980B → S1980BM02_08EX.pdf), nas pastas 01 - CORTANTES, 00 - BRAILLES e 02 - RELEVOS do SharePoint.\n\nMensagem automática da app PCV Ferramentas.`;
     const b=$('#pdfMail');if(b)b.disabled=true;
