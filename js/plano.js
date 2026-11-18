@@ -14,7 +14,7 @@ function renderPlano(){
     return `${nc} cortantes${mn.length?' · '+mn.length+' manut.'+(mt?' ('+fmtDur(mt)+')':''):''}${m.totMin?' · '+fmtDur(m.totMin):''}`};
   el.innerHTML=`<div class="plano-legend"><b>Onde está:</b><span><i style="background:#2a9a5b"></i>em armazém (posição)</span><span><i style="background:#2f6fb5"></i>na máquina</span><span><i style="background:#e2a91b"></i>no pré-corte</span><span><i style="background:#d08700"></i>em reparação</span><span><i style="background:#bbb"></i>não encontrado</span><span><i style="background:repeating-linear-gradient(135deg,#9ca3af 0 3px,#e5e7eb 3px 6px)"></i>🔧 manutenção</span></div><div class="plano-grid">${plan.maqs.map(m=>{let n=0;return `<div class="plano-col"><div class="plano-colhead">${esc(m.maq)}<span class="small muted">${colHead(m)}</span></div>
     <div class="plano-list" data-maq="${esc(m.maq)}">${m.seq.map((s,i)=>{const hid=i>=10?' hidden data-extra':'';
-      if(s.mnt)return `<div class="plano-card pl-mnt"${hid}><div class="plano-ord">🔧</div><div class="plano-body"><b>${esc(s.lbl||'Manutenção')}</b><span class="plano-ex">${s.dur?fmtDur(s.dur):'duração ?'}</span>${s.desc?`<span class="plano-loc">${esc(s.desc)}</span>`:''}</div></div>`;
+      if(s.mnt)return `<div class="plano-card pl-mnt"${hid}><div class="plano-ord">🔧</div><div class="plano-body"><b>${esc(s.lbl||'Manutenção')}</b><span class="plano-ex">${s.dur?fmtDur(s.dur):'duração ?'}${s.hPlan&&Math.abs(s.hPlan*60-(s.dur||0))>5?' (prevista '+esc(String(s.hPlan))+'h)':''}</span>${s.desc?`<span class="plano-loc">${esc(s.desc)}</span>`:''}</div></div>`;
       const t=byCod.get(normCod(s.cod));const e=estInfo(t);n++;
       return `<div class="plano-card ${e.cls}"${hid}><div class="plano-ord">${n}</div><div class="plano-body"><b class="mono">${esc(s.cod)}</b><span class="plano-ex">${s.ex} ex.${s.dur?' · '+fmtDur(s.dur):''}</span><span class="plano-loc">${esc(e.txt)}</span></div></div>`}).join('')}${m.seq.length>10?`<button class="btn sm plano-more" data-more="${esc(m.maq)}">Ver as outras ${m.seq.length-10} ▾</button>`:''}</div></div>`}).join('')}</div>
     <p class="small muted" style="margin-top:8px">${plan.ts?'Planos carregados em '+fmtDT(plan.ts):''}${plan.by?' · '+esc(plan.by):''}</p>`;
@@ -40,8 +40,11 @@ function parsePlano(txt){
       const resto=bl.slice(bl.indexOf(to[0])+to[0].length).replace(/\s+/g,' ').trim();
       const kw=resto.match(/[^.:;]{0,40}(manuten[cç][aã]o|mantenimiento|preventiva|corretiva|correctiva|paragem|limpeza|afina[cç][aã]o|mudan[cç]a|formaç[aã]o)[^.:;]{0,40}/i);
       const lbl=/manuten|mantenim|preventiv|corretiv|correctiv/i.test(resto)?'Manutenção':kw?kw[1].charAt(0).toUpperCase()+kw[1].slice(1).toLowerCase():/Exemplares|Desenho/i.test(resto)?'Ordem sem cortante identificado':'Manutenção / paragem';
-      const desc=(kw?kw[0]:resto).trim().slice(0,70);
-      seq.push({mnt:true,lbl,desc,dur});
+      // linha do SAP: "4005481 5000001312 Manutencao semanal CORTE E VINCO 16 H Un.Palete…" → texto entre o nº de material e a quantidade
+      const lin=resto.match(/\d{6,8}\s+\d{10}\s+(.+?)\s+[\d.,]+\s*(?:H|UN|FL|MIN)\b/i);
+      const desc=(lin?lin[1]:kw?kw[0]:resto).trim().slice(0,70);
+      const hPlan=(resto.match(/^\s*([\d.,]+)\s*H\b/i)||[])[1];   // duração prevista no cabeçalho (ex.: 16 H)
+      seq.push({mnt:true,lbl,desc,dur,...(hPlan?{hPlan:+hPlan.replace(',','.')}:{})});
     }
   }
   // agrupar consecutivos iguais: soma as durações (os blocos de manutenção nunca se juntam)
