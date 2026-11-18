@@ -9,7 +9,7 @@ window.PCV_CONFIG = {
   },
   emailjs: { publicKey: "rHK1AkbCr-1rYxskL", serviceId: "service_1kvimmm", templateId: "template_9maiezr" },
   microsoft: { clientId: "1fd3efe5-94c7-4275-a2af-a0d0c39e25e3", tenantId: "f95c33c5-2761-4ebd-a34b-07b48878c723", mailFrom: "precortevinco@graphicsleader.pt" },
-  google: { scriptUrl: "", token: "437e91a862a84d608bb4ce3dbf7daed3" },   // envio por Google Apps Script (extras/email-apps-script.gs)
+  google: { scriptUrl: "https://script.google.com/macros/s/AKfycbzMxaHPsu9QzsmgHFejiEi0b_PcE52ISo_i60Ie93JAn5MLAvHsKaxYd5HZOyHbF8CB2g/exec",token: "437e91a862a84d608bb4ce3dbf7daed3" },   // envio por Google Apps Script (extras/email-apps-script.gs)
   firebaseAuth: "anonima",
   chaveLocal: "pcv_ferramentas_v1"
 };
