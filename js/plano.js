@@ -10,9 +10,13 @@ function renderPlano(){
   const byCod=new Map();for(const t of S.tools.values())for(const k of toolKeys(t))if(!byCod.has(k))byCod.set(k,t);
   const estInfo=t=>{if(!t)return{txt:'não encontrado',cls:'pl-unk'};
     return {maquina:{txt:'na máquina '+(t.maq||''),cls:'pl-maq'},armazem:{txt:t.pos||'em armazém',cls:'pl-arm'},arrumar:{txt:'no pré-corte',cls:'pl-pre'},reparacao:{txt:'em reparação',cls:'pl-rep'},sucatado:{txt:'sucatado',cls:'pl-unk'}}[t.est]||{txt:t.est,cls:'pl-arm'}};
-  el.innerHTML=`<div class="plano-legend"><b>Onde está:</b><span><i style="background:#2a9a5b"></i>em armazém (posição)</span><span><i style="background:#2f6fb5"></i>na máquina</span><span><i style="background:#e2a91b"></i>no pré-corte</span><span><i style="background:#d08700"></i>em reparação</span><span><i style="background:#bbb"></i>não encontrado</span></div><div class="plano-grid">${plan.maqs.map(m=>`<div class="plano-col"><div class="plano-colhead">${esc(m.maq)}<span class="small muted">${m.seq.length} cortantes${m.totMin?' · '+fmtDur(m.totMin):''}</span></div>
-    <div class="plano-list" data-maq="${esc(m.maq)}">${m.seq.map((s,i)=>{const t=byCod.get(normCod(s.cod));const e=estInfo(t);
-      return `<div class="plano-card ${e.cls}"${i>=10?' hidden data-extra':''}><div class="plano-ord">${i+1}</div><div class="plano-body"><b class="mono">${esc(s.cod)}</b><span class="plano-ex">${s.ex} ex.${s.dur?' · '+fmtDur(s.dur):''}</span><span class="plano-loc">${esc(e.txt)}</span></div></div>`}).join('')}${m.seq.length>10?`<button class="btn sm plano-more" data-more="${esc(m.maq)}">Ver as outras ${m.seq.length-10} ▾</button>`:''}</div></div>`).join('')}</div>
+  const colHead=m=>{const nc=m.seq.filter(s=>!s.mnt).length,mn=m.seq.filter(s=>s.mnt),mt=mn.reduce((a,s)=>a+(s.dur||0),0);
+    return `${nc} cortantes${mn.length?' · '+mn.length+' manut.'+(mt?' ('+fmtDur(mt)+')':''):''}${m.totMin?' · '+fmtDur(m.totMin):''}`};
+  el.innerHTML=`<div class="plano-legend"><b>Onde está:</b><span><i style="background:#2a9a5b"></i>em armazém (posição)</span><span><i style="background:#2f6fb5"></i>na máquina</span><span><i style="background:#e2a91b"></i>no pré-corte</span><span><i style="background:#d08700"></i>em reparação</span><span><i style="background:#bbb"></i>não encontrado</span><span><i style="background:repeating-linear-gradient(135deg,#9ca3af 0 3px,#e5e7eb 3px 6px)"></i>🔧 manutenção</span></div><div class="plano-grid">${plan.maqs.map(m=>{let n=0;return `<div class="plano-col"><div class="plano-colhead">${esc(m.maq)}<span class="small muted">${colHead(m)}</span></div>
+    <div class="plano-list" data-maq="${esc(m.maq)}">${m.seq.map((s,i)=>{const hid=i>=10?' hidden data-extra':'';
+      if(s.mnt)return `<div class="plano-card pl-mnt"${hid}><div class="plano-ord">🔧</div><div class="plano-body"><b>${esc(s.lbl||'Manutenção')}</b><span class="plano-ex">${s.dur?fmtDur(s.dur):'duração ?'}</span>${s.desc?`<span class="plano-loc">${esc(s.desc)}</span>`:''}</div></div>`;
+      const t=byCod.get(normCod(s.cod));const e=estInfo(t);n++;
+      return `<div class="plano-card ${e.cls}"${hid}><div class="plano-ord">${n}</div><div class="plano-body"><b class="mono">${esc(s.cod)}</b><span class="plano-ex">${s.ex} ex.${s.dur?' · '+fmtDur(s.dur):''}</span><span class="plano-loc">${esc(e.txt)}</span></div></div>`}).join('')}${m.seq.length>10?`<button class="btn sm plano-more" data-more="${esc(m.maq)}">Ver as outras ${m.seq.length-10} ▾</button>`:''}</div></div>`}).join('')}</div>
     <p class="small muted" style="margin-top:8px">${plan.ts?'Planos carregados em '+fmtDT(plan.ts):''}${plan.by?' · '+esc(plan.by):''}</p>`;
 }
 function normCod(c){const m=String(c||'').toUpperCase().match(/[MST]\d{3,4}[A-Z]/);return m?m[0]:String(c||'').toUpperCase()}
@@ -31,11 +35,19 @@ function parsePlano(txt){
     const re=/N[ºo]\s*Exemplares:?\s*(\d+)[\s\S]*?Desenho\s*T[eé]cnico\s*\d+\s*-\s*([MST]\d{3,4}[A-Z])/g;
     let m,first=true;
     while((m=re.exec(bl))){seq.push({ex:+m[1],cod:m[2],dur:first?dur:0});first=false}
+    // ordem sem cortante = bloco de manutenção / paragem (v53): entra na sequência porque ocupa a máquina
+    if(first&&to){
+      const resto=bl.slice(bl.indexOf(to[0])+to[0].length).replace(/\s+/g,' ').trim();
+      const kw=resto.match(/[^.:;]{0,40}(manuten[cç][aã]o|mantenimiento|preventiva|corretiva|correctiva|paragem|limpeza|afina[cç][aã]o|mudan[cç]a|formaç[aã]o)[^.:;]{0,40}/i);
+      const lbl=/manuten|mantenim|preventiv|corretiv|correctiv/i.test(resto)?'Manutenção':kw?kw[1].charAt(0).toUpperCase()+kw[1].slice(1).toLowerCase():/Exemplares|Desenho/i.test(resto)?'Ordem sem cortante identificado':'Manutenção / paragem';
+      const desc=(kw?kw[0]:resto).trim().slice(0,70);
+      seq.push({mnt:true,lbl,desc,dur});
+    }
   }
-  // agrupar consecutivos iguais: soma as durações
+  // agrupar consecutivos iguais: soma as durações (os blocos de manutenção nunca se juntam)
   const grouped=[];
   for(const s of seq){const last=grouped[grouped.length-1];
-    if(last&&normCod(last.cod)===normCod(s.cod)){last.ex=Math.max(last.ex,s.ex);last.dur=(last.dur||0)+(s.dur||0)}
+    if(last&&!last.mnt&&!s.mnt&&normCod(last.cod)===normCod(s.cod)){last.ex=Math.max(last.ex,s.ex);last.dur=(last.dur||0)+(s.dur||0)}
     else grouped.push({...s})}
   const totMin=grouped.reduce((a,s)=>a+(s.dur||0),0);
   return maq?{maq,seq:grouped,totMin}:null;
@@ -55,8 +67,8 @@ async function planoUpload(files){
   maqs.sort((a,b)=>a.maq.localeCompare(b.maq));
   const doc={maqs,ts:nowIso(),by:getName()||''};
   S.plano=doc;if(st)st.textContent='';renderPlano();
-  const tot=maqs.reduce((a,m)=>a+m.seq.length,0);
-  toast(`Plano carregado: ${maqs.length} máquina(s), ${tot} cortantes${erros?' ('+erros+' ficheiro(s) ignorado(s))':''}.`);
+  const tot=maqs.reduce((a,m)=>a+m.seq.filter(s=>!s.mnt).length,0),totM=maqs.reduce((a,m)=>a+m.seq.filter(s=>s.mnt).length,0);
+  toast(`Plano carregado: ${maqs.length} máquina(s), ${tot} cortantes${totM?', '+totM+' bloco(s) de manutenção':''}${erros?' ('+erros+' ficheiro(s) ignorado(s))':''}.`);
   if(S.db){try{await S.db.doc('config/plano').set(doc)}catch(e){toast('Lido, mas não guardado na base: '+(e.message||e),1)}}
 }
 document.addEventListener('click',e=>{if(e.target.id==='planoBtn'){const inp=$('#planoFiles');if(inp){inp.value='';inp.click()}}});

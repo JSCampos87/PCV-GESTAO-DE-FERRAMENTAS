@@ -400,5 +400,11 @@ body.role-FAMAG #navFamag{display:inline-flex}
 /* chapas e separações na lista do armazém */
 .chapa-tag{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;color:#fff;vertical-align:middle;margin-left:4px}
 .sep-tag{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600;background:#eef2f5;color:#55606a;vertical-align:middle;margin-left:4px}
+/* notas destacadas das chapas e separações (v53) */
+.nota-dest{display:inline-block;margin-top:4px;padding:3px 9px;border-radius:6px;background:#f1ebfd;border-left:3px solid #7b4fd1;color:#3f2380;font-size:12px;font-weight:600;line-height:1.35;white-space:normal}
+/* blocos de manutenção no plano de produção (v53) */
+.plano-card.pl-mnt{border-left:4px solid #6b7280;background:repeating-linear-gradient(135deg,#f3f4f6 0 8px,#e9ebee 8px 16px)}
+.plano-card.pl-mnt .plano-ord{background:#6b7280;color:#fff;font-size:15px}
+.plano-card.pl-mnt .plano-loc{color:#4b5563;font-weight:600}
 .chip.on{background:var(--ok,#2a9a5b);color:#fff;border-color:var(--ok,#2a9a5b)}
 #tipoChips{margin-right:10px}
