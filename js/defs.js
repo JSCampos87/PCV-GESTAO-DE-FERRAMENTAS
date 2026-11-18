@@ -155,8 +155,9 @@ function renderMail(){
   const q=Object.entries(mailQItems()).sort((a,b)=>String(a[1].ts).localeCompare(String(b[1].ts)));
   el.innerHTML=`<div class="stack" style="gap:6px">
     <div class="small"><b>1. Outlook da empresa</b> (sem limite) — ${!ms?'<span class="pill p-par">não configurado</span> falta o registo Microsoft no config.js':msMailOk?`<span class="pill p-ok">Ativo neste posto</span> envia${mailFrom()?' a partir de <b>'+esc(mailFrom())+'</b> (ou da tua caixa, se não tiveres acesso a essa)':' a partir da tua caixa'}`:'<span class="pill p-par">Inativo neste posto</span> <button class="btn sm" id="msMailOn">Ativar envio pelo Outlook</button>'}</div>
-    <div class="small"><b>2. EmailJS</b> (reserva, 200/mês) — ${c?'<span class="pill p-ok">configurado</span>':'<span class="pill p-par">não configurado</span>'}</div>
-    <div class="small"><b>3. Fila</b> — ${q.length?`<span class="pill p-par">${q.length} por enviar</span> ${ms?'<button class="btn sm" id="mailQGo">Enviar fila agora</button>':''}`:'<span class="pill p-ok">vazia</span>'} <span class="muted">Se as vias 1 e 2 falharem, o email espera aqui e segue com o primeiro posto PCV/SUPV com o Outlook ativo.</span></div>
+    <div class="small"><b>2. Google Apps Script</b> (conta Gmail, ~100/dia) — ${GAS()?'<span class="pill p-ok">configurado</span> só envia para endereços da empresa':'<span class="pill p-par">não configurado</span> ver <span class="mono">extras/email-apps-script.gs</span>'}</div>
+    <div class="small"><b>3. EmailJS</b> (reserva, 200/mês) — ${c?'<span class="pill p-ok">configurado</span>':'<span class="pill p-par">não configurado</span>'}</div>
+    <div class="small"><b>4. Fila</b> — ${q.length?`<span class="pill p-par">${q.length} por enviar</span> ${ms||GAS()?'<button class="btn sm" id="mailQGo">Enviar fila agora</button>':''}`:'<span class="pill p-ok">vazia</span>'} <span class="muted">Se as outras vias falharem, o email espera aqui e segue com o primeiro posto PCV/SUPV que consiga enviar.</span></div>
     ${q.length?`<div class="tw"><table class="t"><thead><tr><th>Criado</th><th>Para</th><th>Assunto</th><th>Último erro</th>${roleAtLeast('SUPV')?'<th></th>':''}</tr></thead><tbody>${q.map(([id,m])=>`<tr><td class="small">${fmtDT(m.ts)}</td><td class="small">${esc((m.to||[]).join(', '))}</td><td class="small">${esc(m.subject)}</td><td class="small muted">${esc(m.err||'')}</td>${roleAtLeast('SUPV')?`<td><button class="btn sm danger" data-mqdel="${esc(id)}">Apagar</button></td>`:''}</tr>`).join('')}</tbody></table></div>`:''}</div>`;
   $('#edAuto').checked=autoMail();$('#edAuto').disabled=!mailOn();$('#edMailTest').disabled=!mailOn();
   $('#msMailOn')&&($('#msMailOn').onclick=async()=>{try{await msToken(true,['Mail.Send']);if(mailFrom())try{await msToken(true,['Mail.Send.Shared'])}catch{}msMailOk=true;toast('Envio pelo Outlook ativo neste posto.');flushMailQ(false)}catch(e){toast('Não foi possível ativar: '+e.message+'. Pode faltar a permissão Mail.Send no registo da app (IT).',1)}renderMail()});
@@ -166,7 +167,7 @@ function renderMail(){
 $('#edAuto').onchange=async e=>{if(!(await saveCl({autoMail:e.target.checked})))e.target.checked=!e.target.checked};
 $('#edMailTest').onclick=async()=>{const to=$('#edTestTo').value.trim().toLowerCase();if(!MAIL_RE.test(to)){toast('Indica o teu email.',1);return}
   const b=$('#edMailTest');b.disabled=true;
-  try{const via=await sendMail([to],'[PCV] Email de teste','Teste de envio automático da app PCV Ferramentas.\n\nSe recebeste esta mensagem, as notificações estão a funcionar.',{noQueue:true});toast('Email de teste enviado para '+to+' ('+(via==='outlook'?'Outlook':'EmailJS')+').')}
+  try{const via=await sendMail([to],'[PCV] Email de teste','Teste de envio automático da app PCV Ferramentas.\n\nSe recebeste esta mensagem, as notificações estão a funcionar.',{noQueue:true});toast('Email de teste enviado para '+to+' ('+(({outlook:'Outlook',google:'Google',emailjs:'EmailJS'})[via])+').')}
   catch(e){toast('Falhou: '+e.message,1)}finally{b.disabled=false}};
 
 /* passwords */

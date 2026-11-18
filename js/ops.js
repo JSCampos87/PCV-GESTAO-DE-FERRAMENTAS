@@ -130,7 +130,7 @@ const autoMail=()=>S.cl?.autoMail!==false;
    2) EmailJS (plano gratuito: 200/mês);
    3) fila na base (config/mailq): o primeiro posto com sessão Microsoft envia-a mais tarde. */
 const msOn=()=>typeof msCfg==='function'&&!!msCfg();
-const mailOn=()=>!!(EJ()||msOn());
+const mailOn=()=>!!(EJ()||msOn()||((window.PCV_CONFIG||{}).google||{}).scriptUrl);
 const mailFrom=()=>(msOn()&&msCfg().mailFrom)||'';
 const splitMails=s=>(Array.isArray(s)?s:String(s||'').split(/[,;]\s*/)).map(x=>String(x).trim()).filter(Boolean);
 async function graphSend(to,subject,message,opts){
@@ -143,6 +143,16 @@ async function graphSend(to,subject,message,opts){
   if(from){try{await post('https://graph.microsoft.com/v1.0/users/'+encodeURIComponent(from)+'/sendMail',await msToken(false,['Mail.Send.Shared']));return 'outlook'}catch(e){/* sem permissão na caixa partilhada: usa a própria */}}
   await post('https://graph.microsoft.com/v1.0/me/sendMail',await msToken(false,['Mail.Send']));return 'outlook';
 }
+/* v56: Google Apps Script (conta Gmail) — não depende de autorizações do grupo */
+const GAS=()=>{const g=(window.PCV_CONFIG||{}).google||{};return g.scriptUrl?g:null};
+async function gasSend(to,subject,message,opts){
+  const g=GAS();if(!g)throw new Error('Apps Script não configurado');
+  let r;try{r=await fetch(g.scriptUrl,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({token:g.token,to:splitMails(to),cc:splitMails((opts&&opts.cc)||''),subject,message})})}
+  catch(e){throw new Error('Apps Script inacessível: '+e.message)}
+  let j=null;try{j=await r.json()}catch{}
+  if(!r.ok||!j||!j.ok)throw new Error('Apps Script: '+((j&&j.err)||r.status));
+  return 'google';
+}
 async function emailjsSend(to,subject,message,opts){
   const c=EJ();if(!c)throw new Error('EmailJS não configurado');
   const res=await fetch('https://api.emailjs.com/api/v1.0/email/send',{method:'POST',headers:{'Content-Type':'application/json'},
@@ -154,6 +164,7 @@ async function emailjsSend(to,subject,message,opts){
 async function sendMail(to,subject,message,opts){
   opts=opts||{};const errs=[];
   if(msOn())try{return await graphSend(to,subject,message,opts)}catch(e){errs.push(e.message)}
+  if(GAS())try{return await gasSend(to,subject,message,opts)}catch(e){errs.push(e.message)}
   if(EJ()&&!opts.noEmailjs)try{return await emailjsSend(to,subject,message,opts)}catch(e){errs.push(e.message)}
   if(opts.noQueue||!S.db)throw new Error(errs.join(' · ')||'envio de email não configurado');
   const id='M'+uid();const item={to:splitMails(to),subject,message,cc:opts.cc||'',ts:nowIso(),by:(typeof getName==='function'&&getName())||S.me||'',err:errs.join(' · ').slice(0,200)};
@@ -166,13 +177,14 @@ async function sendMail(to,subject,message,opts){
 const mailQItems=()=>{const o={};for(const[k,v]of Object.entries(S.mailq?.items||{}))if(v)o[k]=v;return o};
 let mailQBusy=false;
 async function flushMailQ(manual){
-  if(mailQBusy||!S.db||!msOn())return 0;const items=Object.entries(mailQItems());if(!items.length)return 0;
-  try{await msToken(manual,['Mail.Send'])}catch(e){if(manual)toast('Inicia sessão Microsoft para enviar a fila: '+e.message,1);return 0}
+  if(mailQBusy||!S.db||!(msOn()||GAS()))return 0;const items=Object.entries(mailQItems());if(!items.length)return 0;
+  let msOk=false;if(msOn())try{await msToken(manual&&!GAS(),['Mail.Send']);msOk=true}catch(e){if(!GAS()){if(manual)toast('Inicia sessão Microsoft para enviar a fila: '+e.message,1);return 0}}
+  const qSend=async(to,subj,msg,o)=>{if(msOk)try{return await graphSend(to,subj,msg,o)}catch(e){if(!GAS())throw e}return gasSend(to,subj,msg,o)};
   mailQBusy=true;let n=0;
   try{for(const[id,m]of items){
       if(m.lock&&Date.now()-Date.parse(m.lock)<5*60e3)continue;   // outro posto está a enviar
       await S.db.doc('config/mailq').update({items:{[id]:{...m,lock:nowIso()}}});
-      try{await graphSend(m.to,m.subject,m.message+(m.ts?`\n\n(mensagem gerada na app em ${fmtDT(m.ts)}${m.by?' por '+m.by:''})`:''),{cc:m.cc});
+      try{await qSend(m.to,m.subject,m.message+(m.ts?`\n\n(mensagem gerada na app em ${fmtDT(m.ts)}${m.by?' por '+m.by:''})`:''),{cc:m.cc});
         await S.db.doc('config/mailq').update({items:{[id]:null}});n++}
       catch(e){await S.db.doc('config/mailq').update({items:{[id]:{...m,lock:'',err:e.message.slice(0,200)}}})}}
   }finally{mailQBusy=false}
