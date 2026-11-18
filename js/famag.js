@@ -149,7 +149,7 @@ function famAlert(kind,id,label){
     const rec={id:'FA'+uid(),ts:nowIso(),by:getName()||'FAMAG',kind,ref:id,label,msg,estado:'aberto'};
     const list=[...(S.famAlerts||[]),rec];
     try{await S.db.doc('config/famalerts').set({items:list});S.famAlerts=list}catch(e){toast(dbErr(e),1);return}
-    if(EJ())try{await sendMail(['joao.campos@graphicsleader.pt','precortevinco@graphicsleader.pt'],`[FAMAG] Problema assinalado: ${label}`,`A FAMAG assinalou um problema:\n\n${label}\n\n"${msg}"\n\nVer na app (alerta pendente).`)}catch{}
+    if(mailOn())try{await sendMail(['joao.campos@graphicsleader.pt','precortevinco@graphicsleader.pt'],`[FAMAG] Problema assinalado: ${label}`,`A FAMAG assinalou um problema:\n\n${label}\n\n"${msg}"\n\nVer na app (alerta pendente).`)}catch{}
     toast('Problema enviado à GLP. Obrigado pelo aviso.');close();if(typeof renderFamag==='function')renderFamag();
   };
 }

@@ -124,20 +124,70 @@ document.addEventListener('click',e=>{const b=e.target.closest('#seedGo');if(b){
 const EJ=()=>{const c=(window.PCV_CONFIG||{}).emailjs||{};return c.publicKey&&c.serviceId&&c.templateId?c:null};
 const mailTo=tp=>{const k={nc:'ncTo',vida:'vidaTo',saida:'saidaTo'}[tp];const v=S.cl&&S.cl[k];return v&&v.length?v:ncTo()};
 const autoMail=()=>S.cl?.autoMail!==false;
-async function sendMail(to,subject,message,opts){
-  const c=EJ();if(!c)throw new Error('envio automático não configurado (config.js › emailjs)');
-  const res=await fetch('https://api.emailjs.com/api/v1.0/email/send',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({service_id:c.serviceId,template_id:c.templateId,user_id:c.publicKey,template_params:{to_email:to.join(','),subject,message,reply_to:to[0]||'',cc:(opts&&opts.cc)||''}})});
-  if(!res.ok)throw new Error('EmailJS '+res.status+': '+(await res.text()).slice(0,120));
+/* v54: envio por 3 vias, por esta ordem —
+   1) Outlook da empresa (Microsoft Graph, sem limite mensal): quem tem sessão Microsoft na app envia
+      a partir da caixa partilhada (config.js › microsoft.mailFrom) ou, se não puder, da sua própria caixa;
+   2) EmailJS (plano gratuito: 200/mês);
+   3) fila na base (config/mailq): o primeiro posto com sessão Microsoft envia-a mais tarde. */
+const msOn=()=>typeof msCfg==='function'&&!!msCfg();
+const mailOn=()=>!!(EJ()||msOn());
+const mailFrom=()=>(msOn()&&msCfg().mailFrom)||'';
+const splitMails=s=>(Array.isArray(s)?s:String(s||'').split(/[,;]\s*/)).map(x=>String(x).trim()).filter(Boolean);
+async function graphSend(to,subject,message,opts){
+  if(!msOn())throw new Error('Microsoft 365 não configurado');
+  const rcp=a=>splitMails(a).map(address=>({emailAddress:{address}}));
+  const message_={subject,body:{contentType:'Text',content:message},toRecipients:rcp(to)};
+  if(opts&&opts.cc)message_.ccRecipients=rcp(opts.cc);
+  const post=async(url,tok)=>{const r=await fetch(url,{method:'POST',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify({message:message_,saveToSentItems:true})});if(!r.ok)throw new Error('Outlook '+r.status+': '+(await r.text()).slice(0,140));};
+  const from=mailFrom();
+  if(from){try{await post('https://graph.microsoft.com/v1.0/users/'+encodeURIComponent(from)+'/sendMail',await msToken(false,['Mail.Send.Shared']));return 'outlook'}catch(e){/* sem permissão na caixa partilhada: usa a própria */}}
+  await post('https://graph.microsoft.com/v1.0/me/sendMail',await msToken(false,['Mail.Send']));return 'outlook';
 }
+async function emailjsSend(to,subject,message,opts){
+  const c=EJ();if(!c)throw new Error('EmailJS não configurado');
+  const res=await fetch('https://api.emailjs.com/api/v1.0/email/send',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({service_id:c.serviceId,template_id:c.templateId,user_id:c.publicKey,template_params:{to_email:splitMails(to).join(','),subject,message,reply_to:splitMails(to)[0]||'',cc:(opts&&opts.cc)||''}})});
+  if(!res.ok)throw new Error('EmailJS '+res.status+': '+(await res.text()).slice(0,120));
+  return 'emailjs';
+}
+/* devolve 'outlook' | 'emailjs' | 'fila'; lança erro só se não conseguir nem pôr em fila (ou com opts.noQueue) */
+async function sendMail(to,subject,message,opts){
+  opts=opts||{};const errs=[];
+  if(msOn())try{return await graphSend(to,subject,message,opts)}catch(e){errs.push(e.message)}
+  if(EJ()&&!opts.noEmailjs)try{return await emailjsSend(to,subject,message,opts)}catch(e){errs.push(e.message)}
+  if(opts.noQueue||!S.db)throw new Error(errs.join(' · ')||'envio de email não configurado');
+  const id='M'+uid();const item={to:splitMails(to),subject,message,cc:opts.cc||'',ts:nowIso(),by:(typeof getName==='function'&&getName())||S.me||'',err:errs.join(' · ').slice(0,200)};
+  try{await S.db.doc('config/mailq').update({items:{[id]:item}})}
+  catch{await S.db.doc('config/mailq').set({items:{...mailQItems(),[id]:item}})}
+  toast('Email em fila: segue assim que um posto PCV/SUPV com sessão Microsoft abrir a app.');
+  setTimeout(()=>flushMailQ(false),2000);
+  return 'fila';
+}
+const mailQItems=()=>{const o={};for(const[k,v]of Object.entries(S.mailq?.items||{}))if(v)o[k]=v;return o};
+let mailQBusy=false;
+async function flushMailQ(manual){
+  if(mailQBusy||!S.db||!msOn())return 0;const items=Object.entries(mailQItems());if(!items.length)return 0;
+  try{await msToken(manual,['Mail.Send'])}catch(e){if(manual)toast('Inicia sessão Microsoft para enviar a fila: '+e.message,1);return 0}
+  mailQBusy=true;let n=0;
+  try{for(const[id,m]of items){
+      if(m.lock&&Date.now()-Date.parse(m.lock)<5*60e3)continue;   // outro posto está a enviar
+      await S.db.doc('config/mailq').update({items:{[id]:{...m,lock:nowIso()}}});
+      try{await graphSend(m.to,m.subject,m.message+(m.ts?`\n\n(mensagem gerada na app em ${fmtDT(m.ts)}${m.by?' por '+m.by:''})`:''),{cc:m.cc});
+        await S.db.doc('config/mailq').update({items:{[id]:null}});n++}
+      catch(e){await S.db.doc('config/mailq').update({items:{[id]:{...m,lock:'',err:e.message.slice(0,200)}}})}}
+  }finally{mailQBusy=false}
+  if(n&&manual)toast(n+' email(s) da fila enviados.');if(typeof renderMail==='function')renderMail();
+  return n;
+}
+setInterval(()=>{try{if(S.db&&roleAtLeast('PCV'))flushMailQ(false)}catch{}},5*60e3);
 async function notifyNc(n,force){
-  if(!EJ()||(!autoMail()&&!force))return false;const m=ncText(n);
-  try{await sendMail(m.to,m.subj,m.body);toast('Email enviado a '+m.to.join(', '));
+  if(!mailOn()||(!autoMail()&&!force))return false;const m=ncText(n);
+  try{const via=await sendMail(m.to,m.subj,m.body);if(via!=='fila')toast('Email enviado a '+m.to.join(', '));
     try{await S.db.doc('ncs/'+n._id).update({emailAuto:nowIso()})}catch{}return true
   }catch(e){toast('Não foi possível enviar o email automático: '+e.message+'. Usa “Copiar email”.',1);return false}
 }
 async function notifyAlert(topic,subject,message){
-  if(!EJ()||!autoMail())return;
+  if(!mailOn()||!autoMail())return;
   try{await sendMail(mailTo(topic),'[PCV] '+subject,message+'\n\nMensagem automática da app PCV Ferramentas.')}catch(e){toast('Alerta por email não enviado: '+e.message,1)}
 }
 

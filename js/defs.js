@@ -147,16 +147,26 @@ function renderVida(){
 }
 
 /* emails */
+let msMailOk=null;   // null = ainda não verificado neste posto
+async function checkMsMail(){if(!msOn())return msMailOk=false;try{await msToken(false,['Mail.Send']);msMailOk=true}catch{msMailOk=false}return msMailOk}
 function renderMail(){
-  const c=EJ();
-  $('#mailCfg').innerHTML=c?`<div class="small"><span class="pill p-ok">Ativo</span> Envio automático configurado (EmailJS · ${esc(c.serviceId)}).</div>`:
-    `<div class="small"><span class="pill p-par">Manual</span> Envio automático não configurado neste ambiente (config.js › emailjs). Os emails são enviados com “Copiar email” / “Abrir no Outlook”.</div>`;
-  $('#edAuto').checked=autoMail();$('#edAuto').disabled=!c;$('#edMailTest').disabled=!c;
+  const el=$('#mailCfg');if(!el)return;const c=EJ(),ms=msOn();
+  if(ms&&msMailOk===null){msMailOk=false;checkMsMail().then(()=>renderMail());}
+  const q=Object.entries(mailQItems()).sort((a,b)=>String(a[1].ts).localeCompare(String(b[1].ts)));
+  el.innerHTML=`<div class="stack" style="gap:6px">
+    <div class="small"><b>1. Outlook da empresa</b> (sem limite) — ${!ms?'<span class="pill p-par">não configurado</span> falta o registo Microsoft no config.js':msMailOk?`<span class="pill p-ok">Ativo neste posto</span> envia${mailFrom()?' a partir de <b>'+esc(mailFrom())+'</b> (ou da tua caixa, se não tiveres acesso a essa)':' a partir da tua caixa'}`:'<span class="pill p-par">Inativo neste posto</span> <button class="btn sm" id="msMailOn">Ativar envio pelo Outlook</button>'}</div>
+    <div class="small"><b>2. EmailJS</b> (reserva, 200/mês) — ${c?'<span class="pill p-ok">configurado</span>':'<span class="pill p-par">não configurado</span>'}</div>
+    <div class="small"><b>3. Fila</b> — ${q.length?`<span class="pill p-par">${q.length} por enviar</span> ${ms?'<button class="btn sm" id="mailQGo">Enviar fila agora</button>':''}`:'<span class="pill p-ok">vazia</span>'} <span class="muted">Se as vias 1 e 2 falharem, o email espera aqui e segue com o primeiro posto PCV/SUPV com o Outlook ativo.</span></div>
+    ${q.length?`<div class="tw"><table class="t"><thead><tr><th>Criado</th><th>Para</th><th>Assunto</th><th>Último erro</th>${roleAtLeast('SUPV')?'<th></th>':''}</tr></thead><tbody>${q.map(([id,m])=>`<tr><td class="small">${fmtDT(m.ts)}</td><td class="small">${esc((m.to||[]).join(', '))}</td><td class="small">${esc(m.subject)}</td><td class="small muted">${esc(m.err||'')}</td>${roleAtLeast('SUPV')?`<td><button class="btn sm danger" data-mqdel="${esc(id)}">Apagar</button></td>`:''}</tr>`).join('')}</tbody></table></div>`:''}</div>`;
+  $('#edAuto').checked=autoMail();$('#edAuto').disabled=!mailOn();$('#edMailTest').disabled=!mailOn();
+  $('#msMailOn')&&($('#msMailOn').onclick=async()=>{try{await msToken(true,['Mail.Send']);if(mailFrom())try{await msToken(true,['Mail.Send.Shared'])}catch{}msMailOk=true;toast('Envio pelo Outlook ativo neste posto.');flushMailQ(false)}catch(e){toast('Não foi possível ativar: '+e.message+'. Pode faltar a permissão Mail.Send no registo da app (IT).',1)}renderMail()});
+  $('#mailQGo')&&($('#mailQGo').onclick=()=>flushMailQ(true));
+  el.querySelectorAll('[data-mqdel]').forEach(b=>b.onclick=async()=>{if(!confirm('Apagar este email da fila sem o enviar?'))return;try{await S.db.doc('config/mailq').update({items:{[b.dataset.mqdel]:null}})}catch(e){toast(dbErr(e),1)}});
 }
 $('#edAuto').onchange=async e=>{if(!(await saveCl({autoMail:e.target.checked})))e.target.checked=!e.target.checked};
 $('#edMailTest').onclick=async()=>{const to=$('#edTestTo').value.trim().toLowerCase();if(!MAIL_RE.test(to)){toast('Indica o teu email.',1);return}
   const b=$('#edMailTest');b.disabled=true;
-  try{await sendMail([to],'[PCV] Email de teste','Teste de envio automático da app PCV Ferramentas.\n\nSe recebeste esta mensagem, as notificações estão a funcionar.');toast('Email de teste enviado para '+to+'.')}
+  try{const via=await sendMail([to],'[PCV] Email de teste','Teste de envio automático da app PCV Ferramentas.\n\nSe recebeste esta mensagem, as notificações estão a funcionar.',{noQueue:true});toast('Email de teste enviado para '+to+' ('+(via==='outlook'?'Outlook':'EmailJS')+').')}
   catch(e){toast('Falhou: '+e.message,1)}finally{b.disabled=false}};
 
 /* passwords */
@@ -272,9 +282,10 @@ function renderPdfIdx(){
     const c=n?[...S.tools.values()].filter(t=>t.est!=='sucatado'&&pdfFiles(t,k).length).length:0;
     return `<tr><td>${l}</td><td class="num">${n||'—'}</td><td class="num">${n?c:'—'}</td><td class="small">${S.pdfidx?.upd?.[k]?fmtDT(S.pdfidx.upd[k])+' · '+esc(S.pdfidx.src?.[k]||''):'<span class="muted">nunca</span>'}</td></tr>`}).join('')}</tbody></table></div>
     <div class="row">${ms?'<button class="btn pri" id="pdfSync">Atualizar agora do SharePoint (Microsoft 365)</button>':'<span class="small muted">Leitura direta do SharePoint: ainda não configurada (ver README › Ligação ao Microsoft 365). Enquanto isso, usa o CSV abaixo.</span>'}<span class="small muted" id="pdfSyncMsg"></span></div>
-    ${(()=>{const n=[...S.tools.values()].filter(t=>t.est!=='sucatado'&&!pdfUrl(t,'cortante')).length;return `<div class="row"><span class="small"><b>${n}</b> cortantes ativos sem PDF associado.</span>${n?'<button class="btn sm" id="pdfMissing">Ver lista no Armazém</button><button class="btn sm w-only" id="pdfMail">Enviar lista por email</button>':''}<span class="small muted">${S.pdfMail?.ts?'Último envio: '+fmtDT(S.pdfMail.ts)+' ('+S.pdfMail.n+')':''}</span></div>`})()}`;
+    ${(()=>{const n=[...S.tools.values()].filter(t=>t.est!=='sucatado'&&!pdfUrl(t,'cortante')).length;return `<div class="row"><span class="small"><b>${n}</b> cortantes ativos sem PDF associado.</span>${n?'<button class="btn sm pri" id="pdfDiag">Diagnóstico: porque não têm PDF?</button><button class="btn sm" id="pdfMissing">Ver lista no Armazém</button><button class="btn sm w-only" id="pdfMail">Enviar lista por email</button>':''}<span class="small muted">${S.pdfMail?.ts?'Último envio: '+fmtDT(S.pdfMail.ts)+' ('+S.pdfMail.n+')':''}</span></div>`})()}`;
   $('#pdfSync')&&($('#pdfSync').onclick=()=>pdfSync(true));
   $('#pdfMail')&&($('#pdfMail').onclick=()=>mailNoPdf(true));
+  $('#pdfDiag')&&($('#pdfDiag').onclick=openPdfDiag);
   $('#pdfMissing')&&($('#pdfMissing').onclick=()=>{UI.acc='';$('#q').value='';$('#fLocal').value='';$('#fEst').value='ativos';$('#fPdf').value='sem';UI.page=0;go('armazem','lista')});
 }
 /* ---- leitura direta das pastas pelo Microsoft Graph (opcional; precisa de registo da app no Microsoft Entra) ---- */
@@ -321,8 +332,9 @@ async function mailNoPdf(manual){
     if(!manual&&!(S.pdfidx&&PDF_KINDS.some(([k])=>(S.pdfidx[k]||[]).length)))return; // sem índice: não envia sozinho
     if(manual&&!needDb())return;
     const a=noPdfTools(),sig=a.map(t=>t.id).join('|');
-    if(!manual){if(S.pdfMail&&S.pdfMail.sig===sig)return;if(!EJ())return}
-    if(!EJ()){toast('Envio automático de emails não configurado (config.js › emailjs).',1);return}
+    // automático: só se a lista mudou e no máximo 1 vez por semana (v54 — antes gastava a quota do EmailJS)
+    if(!manual){if(S.pdfMail&&S.pdfMail.sig===sig)return;if(S.pdfMail?.ts&&Date.now()-Date.parse(S.pdfMail.ts)<7*864e5)return;if(!mailOn())return}
+    if(!mailOn()){toast('Envio de emails não configurado (Outlook ou EmailJS).',1);return}
     if(!a.length&&!manual)return;
     const MAX=500,lines=a.slice(0,MAX).map(t=>[t.pos||'(sem posição)',t.cod,t.cli||t.den||'',EST[t.est||'armazem']].join(' · '));
     const body=`Cortantes ativos sem PDF associado: ${a.length}\n(posição · código · cliente · estado)\n\n`+lines.join('\n')+(a.length>MAX?`\n\n… e mais ${a.length-MAX}. A lista completa está na app: Armazém › Cortantes › filtro "PDF do cortante: Sem PDF" › Exportar Excel.`:'')+
@@ -334,6 +346,39 @@ async function mailNoPdf(manual){
     toast(`Lista de ${a.length} cortantes sem PDF enviada a ${pdfTo().join(', ')}.`);if(typeof renderPdfIdx==='function')renderPdfIdx();
   }catch(e){toast('Lista sem PDF não enviada: '+e.message,1);const b=$('#pdfMail');if(b)b.disabled=false}
 }
+
+/* ============ diagnóstico dos cortantes sem PDF (v54) ============
+   Separa por causa: índice vazio/antigo, código num formato que a app não reconhece, ou código reconhecido
+   mas sem ficheiro com esse nome. Para estes procura ficheiros com os mesmos números e deixa associar à mão. */
+function pdfDiagData(){
+  const names=S.pdfidx?.cortante||[],a=noPdfTools();
+  const byNum=new Map();for(const n of names){const u=n.toUpperCase();for(const m of u.matchAll(/\d{4,6}/g)){const k=m[0];if(!byNum.has(k))byNum.set(k,[]);byNum.get(k).push(n)}}
+  return a.map(t=>{const ks=toolKeys(t);const nums=[...new Set((String(t.cod||'').toUpperCase().match(/\d{4,6}/g)||[]))];
+    const cand=[];for(const d of nums)for(const n of byNum.get(d)||[])if(!cand.includes(n))cand.push(n);
+    cand.sort((x,y)=>pdfRank(x)-pdfRank(y)||x.length-y.length);
+    const causa=!ks.length?'formato':cand.length?'parecido':'sem';
+    return {t,ks,cand:cand.slice(0,4),causa}});
+}
+const DIAG_CAUSA={formato:'Código num formato que a app não reconhece',parecido:'Há PDFs com os mesmos números (nome diferente)',sem:'Nenhum PDF com este código no SharePoint'};
+function openPdfDiag(){
+  const names=S.pdfidx?.cortante||[],upd=S.pdfidx?.upd?.cortante,base=folderOf('cortante');
+  const rows=pdfDiagData(),cnt=k=>rows.filter(r=>r.causa===k).length;
+  const idxWarn=!names.length?'<div class="banner" style="margin:0">O índice da pasta <b>01 - Cortantes</b> está vazio: nenhum cortante consegue encontrar o PDF. Atualiza o índice (SharePoint ou CSV) primeiro.</div>':
+    (!upd||Date.now()-Date.parse(upd)>3*864e5)?`<div class="banner" style="margin:0">O índice da pasta 01 - Cortantes foi atualizado ${upd?'em '+fmtDT(upd):'há muito tempo'}. PDFs novos no SharePoint só aparecem depois de atualizar.</div>`:'';
+  const sec=k=>{const rs=rows.filter(r=>r.causa===k);if(!rs.length)return '';
+    return `<h4 style="margin:14px 0 6px">${DIAG_CAUSA[k]} · ${rs.length}</h4><div class="tw"><table class="t"><thead><tr><th>Código</th><th>Posição</th><th>Cliente</th>${k==='formato'?'':'<th>Código lido</th>'}${k==='parecido'?'<th>PDFs parecidos</th>':''}</tr></thead><tbody>${rs.slice(0,300).map(r=>`<tr><td class="code">${esc(r.t.cod)}</td><td class="mono">${esc(r.t.pos||'—')}</td><td class="small">${esc((r.t.cli||r.t.den||'').slice(0,30))}</td>${k==='formato'?'':`<td class="mono small">${esc(r.ks.join(', '))}</td>`}${k==='parecido'?`<td class="small">${r.cand.map(n=>`<div class="row" style="gap:6px;flex-wrap:nowrap"><a href="${esc(base+encodeURIComponent(n))}" target="_blank" rel="noopener">${esc(n)}</a>${base?`<button class="btn sm w-only" data-min="PCV" data-diaglink="${esc(r.t.id)}" data-n="${esc(n)}">Associar</button>`:''}</div>`).join('')}</td>`:''}</tr>`).join('')}${rs.length>300?`<tr><td colspan="5" class="small muted">… e mais ${rs.length-300} (ver no Excel)</td></tr>`:''}</tbody></table></div>`};
+  openDrawer(`<div class="dh"><div class="grow"><h3 style="font-family:var(--f-sans)">Cortantes sem PDF · diagnóstico</h3><p>${rows.length} cortantes ativos sem PDF · ${names.length} PDFs no índice da pasta 01 - Cortantes</p></div><button class="btn sm" id="diagXls">Exportar Excel</button><button class="btn sm" data-close>Fechar</button></div>
+    <div class="panel stack">${idxWarn}
+    <div class="small">A app liga o PDF pelo código no nome do ficheiro: <span class="mono">S/T/M + 4 números + letra</span> (ex.: S1980B → S1980BM02_08EX.pdf) ou <span class="mono">P + 6 números</span> (ex.: P00225309 → P-002253-09…pdf).</div>
+    <div class="row small" style="gap:14px"><span><b>${cnt('formato')}</b> formato não reconhecido</span><span><b>${cnt('parecido')}</b> com PDFs parecidos</span><span><b>${cnt('sem')}</b> sem PDF no SharePoint</span></div>
+    ${sec('parecido')}${sec('formato')}${sec('sem')}</div>`);
+  $('#diagXls').onclick=()=>exportXlsx(`Diagnostico_PDF_${today()}.xlsx`,[['Sem PDF',[['Código','Posição','Local','Cliente','Estado','Causa','Código lido pela app','PDFs parecidos'],...rows.map(r=>[r.t.cod,r.t.pos||'',r.t.local||'',r.t.cli||r.t.ncli||'',EST[r.t.est||'armazem'],DIAG_CAUSA[r.causa],r.ks.join(', '),r.cand.join(' | ')])]],['Índice 01 - Cortantes',[['Ficheiro','Código lido pela app'],...names.map(n=>[n,[...pdfKeys(n)].join(', ')])]]]);
+}
+document.addEventListener('click',async e=>{const b=e.target.closest('[data-diaglink]');if(!b)return;
+  const t=S.tools.get(b.dataset.diaglink),n=b.dataset.n,base=folderOf('cortante');if(!t||!base)return;
+  if(!confirm(`Associar ${n} ao cortante ${t.cod}?`))return;
+  const nt={...t,pdf:base+encodeURIComponent(n)};addHist(nt,'PDF associado à mão: '+n);
+  b.disabled=true;if(await saveTools([nt])){toast(`${t.cod} ligado a ${n}.`);b.closest('tr').style.opacity=.45}else b.disabled=false});
 
 /* ============ ligar Brailles e relevos pelo conteúdo dos PDFs (v28) ============
    Lê o texto dos PDFs escolhidos (pdf.js), procura códigos de cortante (S/T + 4 dígitos + letra) e guarda

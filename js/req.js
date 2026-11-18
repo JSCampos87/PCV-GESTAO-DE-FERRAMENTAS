@@ -85,10 +85,10 @@ async function sendReq(items,needsAuth){
     const list=[...(S.reqAuth||[]),rec];
     try{await S.db.doc('config/reqauth').set({items:list});S.reqAuth=list}catch(e){toast(dbErr(e),1);return}
     // email a avisar o João Campos
-    if(EJ())try{await sendMail([REQ_AUTH_TO],`[Autorização] Requisição de chapa 1mm — ${fmtD(today())}`,`Há uma requisição de chapa 1mm à espera da tua autorização na app (Requisições).\n\n${corpo}\n\nAutoriza na app com o teu código.`)}catch{}
+    if(mailOn())try{await sendMail([REQ_AUTH_TO],`[Autorização] Requisição de chapa 1mm — ${fmtD(today())}`,`Há uma requisição de chapa 1mm à espera da tua autorização na app (Requisições).\n\n${corpo}\n\nAutoriza na app com o teu código.`)}catch{}
     toast('Pedido de autorização enviado ao João Campos. A requisição segue depois de autorizada.');
   }else{
-    if(!EJ()){toast('Envio de email não configurado (config.js › emailjs).',1);return}
+    if(!mailOn()){toast('Envio de email não configurado (Outlook ou EmailJS).',1);return}
     try{await sendMail([REQ_TO],`Requisição de material — Pré-corte e vinco — ${fmtD(today())}`,corpo,{cc:REQ_CC});
       await logReq(items,'enviada');toast(`Requisição enviada a ${REQ_TO}.`);reqCart={};renderReq()}
     catch(e){toast('Não enviada: '+e.message,1)}
@@ -104,6 +104,6 @@ document.addEventListener('click',async e=>{const b=e.target.closest('[data-auth
   const list=(S.reqAuth||[]).map(x=>x.id===id?{...x,estado:'autorizada',authTs:nowIso(),authBy:getName()||''}:x);
   try{await S.db.doc('config/reqauth').set({items:list});S.reqAuth=list}catch(e){toast(dbErr(e),1);return}
   // agora envia a requisição a compras
-  if(EJ())try{await sendMail([REQ_TO],`Requisição de material (autorizada) — Pré-corte e vinco — ${fmtD(today())}`,r.corpo+`\n\nAutorizada por ${getName()||''} em ${fmtDT(nowIso())}.`,{cc:REQ_CC})}catch{}
+  if(mailOn())try{await sendMail([REQ_TO],`Requisição de material (autorizada) — Pré-corte e vinco — ${fmtD(today())}`,r.corpo+`\n\nAutorizada por ${getName()||''} em ${fmtDT(nowIso())}.`,{cc:REQ_CC})}catch{}
   toast('Autorizada e enviada a compras.');renderReqAuthBox();
 });

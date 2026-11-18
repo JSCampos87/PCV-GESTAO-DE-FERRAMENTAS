@@ -96,7 +96,15 @@ firestore.rules     regras de segurança do Firestore
 ```
 
 ## 5. Emails automáticos (notificações)
-A app envia emails automáticos através do **EmailJS** (gratuito até 200 emails/mês), sem servidor próprio:
+Desde a v54 a app tenta enviar cada email por esta ordem:
+1. **Outlook da empresa (Microsoft Graph)**: sem limite mensal. Usa a sessão Microsoft de quem está na app e envia a partir de `precortevinco@graphicsleader.pt` (`config.js › microsoft.mailFrom`) ou, se a pessoa não tiver acesso a essa caixa, da própria caixa. Ativa-se em **Definições › Emails › Ativar envio pelo Outlook**.
+   Requer, no registo da app no Microsoft Entra (o mesmo do ponto 5a), as permissões delegadas **Mail.Send** e, para enviar a partir da caixa partilhada, **Mail.Send.Shared**, além de o utilizador ter permissão *Enviar como* nessa caixa (Exchange).
+2. **EmailJS** (reserva, 200 emails/mês), configurado como explicado abaixo.
+3. **Fila** (`config/mailq` na base): se as duas falharem (por exemplo, no posto de um operador sem sessão Microsoft), o email espera e é enviado pelo primeiro posto PCV/SUPV com o Outlook ativo (verifica de 5 em 5 minutos). A fila vê-se em Definições › Emails.
+
+A lista automática de cortantes sem PDF passou a ser enviada no máximo uma vez por semana.
+
+Configuração antiga, só com o EmailJS (gratuito até 200 emails/mês):
 - **Não conformidade na receção** → destinatários das não conformidades (Sandra Barros, Vitor Moreira, Mário David), com o relatório no corpo do email.
 - **Cortante acima do limite de vida** → lista “Limite de vida atingido”.
 - **Cortante NOK à saída da máquina** → lista “Saída NOK de máquina”.
