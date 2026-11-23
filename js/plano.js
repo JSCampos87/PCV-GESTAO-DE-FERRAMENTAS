@@ -1,24 +1,30 @@
 "use strict";
 /* ============ Plano de produção (v44) — lê os PDFs do SAP e mostra a sequência por máquina ============
    O SUPV carrega os planos; a app extrai (máquina, sequência de cortantes com nº exemplares),
-   agrupa consecutivos iguais e mostra o local atual de cada cortante, com cor por estado. */
+   agrupa consecutivos iguais (mesmo código e exemplares) e mostra o local atual de cada cortante, com cor por estado. */
 function renderPlano(){
   const el=$('#planoBoard');if(!el)return;
   const plan=S.plano||null;
   if(!plan||!plan.maqs||!plan.maqs.length){el.innerHTML='<p class="fempty">Ainda não há planos carregados. '+(roleAtLeast('SUPV')?'Carrega os PDFs dos planos de produção.':'Pede ao responsável para carregar os planos.')+'</p>';return}
-  // índice de cortantes por código base
-  const byCod=new Map();for(const t of S.tools.values())for(const k of toolKeys(t))if(!byCod.has(k))byCod.set(k,t);
-  const estInfo=t=>{if(!t)return{txt:'não encontrado',cls:'pl-unk'};
+  // (v59) cortantes por código base; a posição só aparece se houver UM cortante (ou vários no mesmo sítio)
+  // com exatamente o nº de exemplares do plano (lido no fim da denominação, ex.: "…_4EX"). Na dúvida, nada.
+  const byCod=new Map();for(const t of S.tools.values()){if(t.est==='sucatado'||!naLista(t)||t.tipo==='peca'||isPecaSolta(t)||pecaTipo(t.den)!=='cortante')continue;
+    for(const k of toolKeys(t)){if(!byCod.has(k))byCod.set(k,[]);if(!byCod.get(k).includes(t))byCod.get(k).push(t)}}
+  const pick=s=>{const c=byCod.get(normCod(s.cod))||[];if(!c.length)return {nf:1};const ok=c.filter(t=>exDe(t)===+s.ex);
+    const k=new Set(ok.map(t=>[t.est,t.pos,t.maq].join('|')));return ok.length&&k.size===1?{t:ok[0]}:{conf:c.length}};
+  const estInfo=r=>{const t=r.t;if(!t)return r.conf?{txt:'confirmar no armazém',cls:'pl-unk',tit:r.conf+' cortante(s) com este código, sem certeza de qual tem estes exemplares'}:{txt:'não encontrado',cls:'pl-unk'};
     return {maquina:{txt:'na máquina '+(t.maq||''),cls:'pl-maq'},armazem:{txt:t.pos||'em armazém',cls:'pl-arm'},arrumar:{txt:'no pré-corte',cls:'pl-pre'},reparacao:{txt:'em reparação',cls:'pl-rep'},sucatado:{txt:'sucatado',cls:'pl-unk'}}[t.est]||{txt:t.est,cls:'pl-arm'}};
   const colHead=m=>{const nc=m.seq.filter(s=>!s.mnt).length,mn=m.seq.filter(s=>s.mnt),mt=mn.reduce((a,s)=>a+(s.dur||0),0);
     return `${nc} cortantes${mn.length?' · '+mn.length+' manut.'+(mt?' ('+fmtDur(mt)+')':''):''}${m.totMin?' · '+fmtDur(m.totMin):''}`};
   el.innerHTML=`<div class="plano-legend"><b>Onde está:</b><span><i style="background:#2a9a5b"></i>em armazém (posição)</span><span><i style="background:#2f6fb5"></i>na máquina</span><span><i style="background:#e2a91b"></i>no pré-corte</span><span><i style="background:#d08700"></i>em reparação</span><span><i style="background:#bbb"></i>não encontrado</span><span><i style="background:repeating-linear-gradient(135deg,#9ca3af 0 3px,#e5e7eb 3px 6px)"></i>🔧 manutenção</span></div><div class="plano-grid">${plan.maqs.map(m=>{let n=0;return `<div class="plano-col"><div class="plano-colhead">${esc(m.maq)}<span class="small muted">${colHead(m)}</span></div>
     <div class="plano-list" data-maq="${esc(m.maq)}">${m.seq.map((s,i)=>{const hid=i>=10?' hidden data-extra':'';
       if(s.mnt)return `<div class="plano-card pl-mnt"${hid}><div class="plano-ord">🔧</div><div class="plano-body"><b>${esc(s.lbl||'Manutenção')}</b><span class="plano-ex">${s.dur?fmtDur(s.dur):'duração ?'}${s.hPlan&&Math.abs(s.hPlan*60-(s.dur||0))>5?' (prevista '+esc(String(s.hPlan))+'h)':''}</span>${s.desc?`<span class="plano-loc">${esc(s.desc)}</span>`:''}</div></div>`;
-      const t=byCod.get(normCod(s.cod));const e=estInfo(t);n++;
-      return `<div class="plano-card ${e.cls}"${hid}><div class="plano-ord">${n}</div><div class="plano-body"><b class="mono">${esc(s.cod)}</b><span class="plano-ex">${s.ex} ex.${s.dur?' · '+fmtDur(s.dur):''}</span><span class="plano-loc">${esc(e.txt)}</span></div></div>`}).join('')}${m.seq.length>10?`<button class="btn sm plano-more" data-more="${esc(m.maq)}">Ver as outras ${m.seq.length-10} ▾</button>`:''}</div></div>`}).join('')}</div>
+      const e=estInfo(pick(s));n++;
+      return `<div class="plano-card ${e.cls}"${hid}${e.tit?' title="'+esc(e.tit)+'"':''}><div class="plano-ord">${n}</div><div class="plano-body"><b class="mono">${esc(s.cod)}</b><span class="plano-ex">${s.ex} ex.${s.dur?' · '+fmtDur(s.dur):''}</span><span class="plano-loc">${esc(e.txt)}</span></div></div>`}).join('')}${m.seq.length>10?`<button class="btn sm plano-more" data-more="${esc(m.maq)}">Ver as outras ${m.seq.length-10} ▾</button>`:''}</div></div>`}).join('')}</div>
     <p class="small muted" style="margin-top:8px">${plan.ts?'Planos carregados em '+fmtDT(plan.ts):''}${plan.by?' · '+esc(plan.by):''}</p>`;
 }
+/* nº de exemplares no fim da denominação: "C_S2762AM02_Cx…SK50MLX10_4EX" → 4; "…x10 6ex" → 6 */
+function exDe(t){const m=[...String(t.den||'').matchAll(/(\d{1,3})\s*-?\s*ex(?:emplares)?(?![a-z])/gi)];return m.length?+m[m.length-1][1]:null}
 function normCod(c){const m=String(c||'').toUpperCase().match(/[MST]\d{3,4}[A-Z]/);return m?m[0]:String(c||'').toUpperCase()}
 
 // extrair plano de um PDF
@@ -50,7 +56,7 @@ function parsePlano(txt){
   // agrupar consecutivos iguais: soma as durações (os blocos de manutenção nunca se juntam)
   const grouped=[];
   for(const s of seq){const last=grouped[grouped.length-1];
-    if(last&&!last.mnt&&!s.mnt&&normCod(last.cod)===normCod(s.cod)){last.ex=Math.max(last.ex,s.ex);last.dur=(last.dur||0)+(s.dur||0)}
+    if(last&&!last.mnt&&!s.mnt&&normCod(last.cod)===normCod(s.cod)&&last.ex===s.ex){last.dur=(last.dur||0)+(s.dur||0)}
     else grouped.push({...s})}
   const totMin=grouped.reduce((a,s)=>a+(s.dur||0),0);
   return maq?{maq,seq:grouped,totMin}:null;

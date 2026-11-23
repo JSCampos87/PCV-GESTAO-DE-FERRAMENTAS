@@ -196,6 +196,33 @@ function refreshAll(){
   if(UI.view==='armazem')sync3D();
 }
 
+/* ============ Revisão de cortantes parados (v59) ============
+   Ensaios (código P…): 3 meses sem movimento no armazém → pergunta ao PCV se é para manter; se mantido, só volta a perguntar 1 ano depois.
+   Cortantes S…: sem movimento há mais de 2 anos; a lista só muda no início de cada trimestre (1/jan, 1/abr, 1/jul, 1/out).
+   "Manter" grava t.revOk (conta como movimento); "P/ sucatar" marca Status = Sucatar (a sucata real continua na Supervisão).
+   Sem nenhuma data (última data, histórico) o cortante não entra, para não encher a lista com dados importados. */
+function lastMov(t){let d=0;const up=v=>{const x=Date.parse(v||'');if(x>d)d=x};up(t.ult);up(t.maqDesde);up(t.repDesde);
+  for(const h of t.hist||[])if(!/^(Dados editados|Mantido|Marcado para sucatar|Juntou-se|Separada)/i.test(h.a||''))up(h.d);return d}
+function revDue(t,now){
+  if(t.est!=='armazem'&&t.est)return null;if(t.dec==='Sucatar'||!naLista(t))return null;
+  const c=String(t.cod||'').trim().toUpperCase(),ok=Date.parse(t.revOk||'')||0,ref=Math.max(lastMov(t),ok);if(!ref)return null;
+  if(c[0]==='P'){const dias=ok?365:91;return now-ref>=dias*864e5?{ref,lim:ok?'1 ano':'3 meses',tp:'Ensaio'}:null}
+  if(c[0]==='S'){const d=new Date(now),q=new Date(d.getFullYear()-2,Math.floor(d.getMonth()/3)*3,1).getTime();return ref<q?{ref,lim:'2 anos',tp:'Cortante'}:null}
+  return null}
+function renderRev(){const el=$('#revList');if(!el)return;const now=Date.now();
+  const l=S.loaded.tools?[...S.tools.values()].map(t=>({t,r:revDue(t,now)})).filter(x=>x.r).sort((a,b)=>a.r.ref-b.r.ref):[];
+  $('#revPanel').hidden=!l.length;$('#revN').textContent=l.length;if(!l.length){el.innerHTML='';return}
+  const mx=UI.revAll?l.length:15;
+  el.innerHTML=`<div class="tw"><table class="t"><thead><tr><th>Cortante</th><th>Último movimento</th><th></th></tr></thead><tbody>${l.slice(0,mx).map(({t,r})=>`<tr class="click" data-tool="${esc(t.id)}"><td class="code">${esc(t.cod)}<div class="small muted" style="font-family:var(--f-sans);font-weight:400">${esc(t.pos||'')}${t.cli?' · '+esc(t.cli):''}</div></td><td class="small"><span class="mono">${fmtD(new Date(r.ref).toISOString().slice(0,10))}</span><div class="muted">${r.tp} parado há mais de ${r.lim}</div></td><td class="w-only" data-min="PCV" style="white-space:nowrap;text-align:right"><button class="btn sm" data-revok="${esc(t.id)}">Manter</button> <button class="btn sm danger" data-revsuc="${esc(t.id)}">P/ sucatar</button></td></tr>`).join('')}</tbody></table></div>${l.length>mx?`<button class="btn sm" id="revMore">Ver todos (${l.length})</button>`:''}`;
+}
+document.addEventListener('click',async e=>{
+  if(e.target.id==='revMore'){UI.revAll=1;renderRev();return}
+  const b=e.target.closest('[data-revok],[data-revsuc]');if(!b)return;e.stopPropagation();
+  const t=S.tools.get(b.dataset.revok||b.dataset.revsuc);if(!t||!needDb())return;b.disabled=true;
+  const keep=!!b.dataset.revok,n={...t,...(keep?{revOk:today(),dec:'Manter'}:{dec:'Sucatar'})};
+  addHist(n,keep?'Mantido na revisão de cortantes parados':'Marcado para sucatar na revisão de cortantes parados');
+  if(await saveTools([n]))toast(t.cod+(keep?' mantido.':' marcado para sucatar (filtro “p/ sucatar” no armazém).'));
+},true);
 /* ============ início ============ */
 function agentInit(){
   const q=$('#agentQ');if(!q||q.dataset.b)return;q.dataset.b='1';
@@ -208,7 +235,7 @@ function agentInit(){
   $('#agentOut').addEventListener('click',e=>{const a=e.target.closest('[data-agtool]');if(a)openTool(a.dataset.agtool)});
 }
 function renderHome(){agentInit();
-  const all=[...S.tools.values()];const act=all.filter(t=>t.est!=='sucatado');
+  const all=[...S.tools.values()].filter(naLista);const act=all.filter(t=>t.est!=='sucatado');
   const rep=act.filter(t=>t.est==='reparacao').length;const free=freePositions().length;
   const st=(v,l,c)=>`<div class="stat ${c||''}"><b>${v}</b><span>${l}</span></div>`;
   const ld=S.loaded.tools?null:'—';
@@ -220,6 +247,7 @@ function renderHome(){agentInit();
   {const pa=typeof porArrumar==='function'?porArrumar().reduce((s,x)=>s+x.q,0):0;
   $('#homeOrd').innerHTML=lo&&ot.ped?`<b>${ot.ped}</b> ferramentas pedidas · <b>${ot.rec}</b> recebidas até ${fmtD(today())}${pa?` · <b style="color:var(--warn)">${pa}</b> por arrumar`:''}`:'';}
   if(typeof renderPend==='function')renderPend();
+  renderRev();
   const d30=Date.now()-30*864e5;const q30=S.insp.filter(i=>new Date(i.ts)>d30);const n30=q30.filter(i=>i.res==='NOK').length;
   {const ex30=(S.exits||[]).filter(i=>new Date(i.ts)>d30);const lim=vidaMax();const ov=all.filter(t=>t.est!=='sucatado'&&(+t.folhas||0)>=vidaMax(t)).length;
    $('#stO').innerHTML=st(S.loaded.exits?ex30.length:'—','registos 30 d')+st(S.loaded.exits?Math.round(ex30.reduce((s,i)=>s+(+i.folhas||0),0)/1000)+' mil':'—','folhas 30 d')+st(S.loaded.tools?ov:'—','acima do limite',ov?'alert':'');}
@@ -251,6 +279,7 @@ function toolAc(input,list,onPick){
 toolAc($('#homeSearch'),$('#homeAc'),t=>{$('#homeSearch').value='';openTool(t.id)});
 $('#repList').addEventListener('click',async e=>{const b=e.target.closest('[data-repok]');if(b){const t=S.tools.get(b.dataset.repok);if(!t)return;const n={...t,est:'armazem'};delete n.repDesde;delete n.repMot;delete n.repOrig;addHist(n,'Reparação concluída; regressou ao armazém ('+(t.pos||'sem posição')+')');if(await saveTools([n]))toast(t.cod+' reparado e de volta ao armazém.');return}const r=e.target.closest('[data-tool]');if(r)openTool(r.dataset.tool)});
 $('#vidaList').addEventListener('click',e=>{const r=e.target.closest('[data-tool]');if(r)openTool(r.dataset.tool)});
+$('#revList')&&$('#revList').addEventListener('click',e=>{const r=e.target.closest('[data-tool]');if(r)openTool(r.dataset.tool)});
 $('#ncList').addEventListener('click',e=>{const r=e.target.closest('[data-nc]');if(r){const n=(S.ncs||[]).find(x=>x._id===r.dataset.nc);if(n)openNc(n)}});
 
 /* ============ armazém: lista ============ */
@@ -274,7 +303,7 @@ function notaCell(t){
 }
 function filteredTools(){
   const q=norm($('#q').value),loc=$('#fLocal').value,est=$('#fEst').value;
-  let a=[...S.tools.values()];
+  let a=[...S.tools.values()].filter(naLista);
   {const tp=UI.tipo||'';if(tp==='cortante')a=a.filter(t=>!t.tipo||t.tipo==='cortante');else if(tp)a=a.filter(t=>t.tipo===tp)}
   {const B=t=>accOf(t,'braille'),R=t=>accOf(t,'relevo');if(UI.acc==='br')a=a.filter(B);else if(UI.acc==='rl')a=a.filter(R);else if(UI.acc==='brrl')a=a.filter(t=>B(t)&&R(t));}
   if(loc)a=a.filter(t=>t.local===loc);
@@ -308,7 +337,7 @@ function pdfIcon(t,kind,label){const u=pdfUrl(t,kind);if(u)return `<a class="pdf
   return `<a class="pdfi off" href="${esc(spSearch(t.cod))}" target="_blank" rel="noopener" title="PDF ${esc(label||kind)} ainda não associado – procurar ${esc(t.cod)} no SharePoint">${PDF_SVG}</a>`}
 function accCell(t,kind){const it=accOf(t,kind);if(!it)return '<span class="muted">—</span>';return `<span class="acc"><span class="acc-k">${kind==='braille'?'Braille':'Relevo'}</span><span class="mono${it.pos?'':' muted'}">${esc(it.pos||'posição ?')}</span>${pdfIcon(t,kind,kind==='braille'?'Braille':'Relevo')}</span>`}
 function renderTools(){
-  let nb=0,nr=0,nall=0;for(const t of S.tools.values())if(t.est!=='sucatado'){nall++;if(accOf(t,'braille'))nb++;if(accOf(t,'relevo'))nr++}
+  let nb=0,nr=0,nall=0;for(const t of S.tools.values())if(t.est!=='sucatado'&&naLista(t)){nall++;if(accOf(t,'braille'))nb++;if(accOf(t,'relevo'))nr++}
   {const _all=[...S.tools.values()].filter(t=>t.est!=='sucatado');
    const _nCh=_all.filter(t=>t.tipo==='chapa').length,_nSp=_all.filter(t=>t.tipo==='separacao').length;
    const _tp=[['cortante','Cortantes']];if(_nCh)_tp.push(['chapa','Chapas ('+_nCh+')']);if(_nSp)_tp.push(['separacao','Separações ('+_nSp+')']);
@@ -338,7 +367,7 @@ $('#expPdf').onclick=()=>toolsPdf(filteredTools(),accName().replace(/_/g,' ')+' 
 $('#expAllPdf').onclick=()=>toolsPdf([...S.tools.values()].filter(t=>t.est!=='sucatado').sort((a,b)=>String(a.pos).localeCompare(String(b.pos),'pt',{numeric:true})),'Lista de posições – Armazém PCV');
 
 /* ============ posições ============ */
-function occupied(){const m=new Map();const add=(p,t)=>{if(!m.has(p))m.set(p,[]);if(!m.get(p).includes(t))m.get(p).push(t)};for(const t of S.tools.values())if(t.est!=='sucatado'){if(t.pos)add(t.pos,t);if(t.br?.pos)add(t.br.pos,t);if(t.rl?.pos)add(t.rl.pos,t)}return m}
+function occupied(){const m=new Map();const add=(p,t)=>{if(!m.has(p))m.set(p,[]);if(!m.get(p).includes(t))m.get(p).push(t)};for(const t of S.tools.values())if(t.est!=='sucatado'&&naLista(t)){if(t.pos)add(t.pos,t);if(t.br?.pos)add(t.br.pos,t);if(t.rl?.pos)add(t.rl.pos,t)}return m}
 function allPositions(){const s={...S.positions};for(const t of S.tools.values())if(t.pos&&!s[t.pos])s[t.pos]={l:t.local||''};return s}
 function freePositions(local){const occ=occupied();return Object.entries(allPositions()).filter(([p,v])=>!occ.has(p)&&(!local||v.l===local)&&/^[A-H]\d{3,4}$/i.test(p)).map(([p])=>p).sort((a,b)=>a.localeCompare(b,'pt',{numeric:true}))}
 function renderPositions(){
@@ -383,7 +412,7 @@ function openTool(id){
     <button class="btn" id="dEdit">Editar dados</button>
   </div>
   <div id="dAct"></div>
-  ${nPecas(t)>1?`<div class="panel stack" style="gap:6px"><div class="row"><h4 class="grow">Conjunto · ${nPecas(t)} peças</h4></div><p class="small muted" style="margin:0">Arrumam e movem-se juntas numa só posição. “Separar” torna a peça numa ferramenta independente.</p><div class="tw"><table class="t"><tbody>${pecasDe(t).map(p=>`<tr><td>${esc(p.nome)}</td><td style="text-align:right">${p.tipo==='cortante'?'<span class=\'small muted\'>principal</span>':`<button class="btn sm w-only" data-sep="${esc(p.tipo)}" data-min="PCV">Separar</button>`}</td></tr>`).join('')}</tbody></table></div></div>`:''}
+  ${nPecas(t)>1?`<div class="panel stack" style="gap:6px"><div class="row"><h4 class="grow">Conjunto · ${nPecas(t)} peças</h4><button class="btn sm w-only" id="dDesag" data-min="PCV">Desagrupar conjunto</button></div><p class="small muted" style="margin:0">Arrumam e movem-se juntas numa só posição; as peças não aparecem sozinhas na lista. “Separar” torna a peça numa ferramenta independente.</p>${conjSoltas(t).length?`<div class="banner" style="margin:0">Há ${conjSoltas(t).length} ficha(s) destas peças ainda soltas na lista (${conjSoltas(t).map(c=>esc(c.x.den||c.x.cod)).join(', ')}). <button class="btn sm pri w-only" id="dJunta" data-min="PCV">Juntar ao conjunto</button></div>`:''}<div class="tw"><table class="t"><tbody>${pecasDe(t).map(p=>`<tr><td>${esc(p.nome)}${p.tipo!=='cortante'&&conjDaPeca(t,p.tipo)?` <span class="small muted">· ${esc(conjDaPeca(t,p.tipo).den||'ficha ligada')}</span>`:''}</td><td style="text-align:right">${p.tipo==='cortante'?'<span class=\'small muted\'>principal</span>':`<button class="btn sm w-only" data-sep="${esc(p.tipo)}" data-min="PCV">Separar</button>`}</td></tr>`).join('')}</tbody></table></div></div>`:''}
   <div class="panel stack" style="gap:8px"><div class="row"><h4 class="grow">Parâmetros ideais por máquina</h4><button class="btn sm op-only w-only" id="dParEdit">Editar</button></div><div id="dPar">${paramTable(t)}</div></div>
   <div class="panel"><div class="row"><span class="small muted grow">Vida do cortante</span><b class="mono">${fmtN(t.folhas)}</b><span class="small muted">/ ${fmtN(vidaMax(t))} folhas${t.vidaMax?' (limite próprio)':''}</span></div>${vidaBar(t)}${(+t.folhas||0)>=vidaMax(t)?'<div class="small" style="color:var(--nok);margin-top:6px">Ultrapassou o limite de vida. Avaliar substituição ou reparação.</div>':''}</div>
   <dl class="kv panel">${kv('Material',esc(t.mat))}${kv('Denominação',esc(t.den))}${kv('Cliente',esc([t.ncli,t.cli].filter(Boolean).join(' · ')))}${kv('KAM',esc(t.kam))}${kv('Última data',fmtD(t.ult))}${isPecaSolta(t)?kv('Notas',notasPeca(t).length?`<span class="nota-dest">📝 ${notasPeca(t).map(esc).join(' · ')}</span>`:''):kv('Notas',esc(t.notas))+kv('Observações',esc(t.obs))}${kv('Status',esc(t.dec))}${kv('Revisão',esc(t.rev))}${kv('Atualizado',fmtD(t.upd))}</dl>
@@ -418,10 +447,20 @@ function openTool(id){
     if(!confirm(`Separar “${nome}” de ${t.cod}? Fica uma ferramenta independente, que terás de arrumar numa posição própria.`))return;
     const rest=pecasDe(t).filter(p=>p.tipo!==tipo);
     const base={...t};if(rest.length>1)base.pecas=rest;else delete base.pecas;addHist(base,`Separada a peça ${nome}`);
+    {const lig=conjDaPeca(t,tipo);if(lig){const n=conjSolta(lig,t,'');b.disabled=true;if(await saveTools([base,n])){toast(`“${nome}” separada. Arruma-a numa posição.`);openToolForm(n,{focus:'pos'})}return}}
     const nova={id:safeId(t.cod+'-'+tipo)+'-'+uid().slice(-4),cod:t.cod+' · '+nome,tipo:'peca',pecaDe:t.id,pecaTipo:tipo,
       mat:t.mat||'',cli:t.cli||'',ncli:t.ncli||'',den:(nome+' de '+(t.den||t.cod)),est:'armazem'};
     addHist(nova,`Separada do conjunto ${t.cod}`);
     b.disabled=true;if(await saveTools([base,nova])){toast(`“${nome}” separada. Arruma-a numa posição.`);openToolForm(nova,{focus:'pos'})}
+  });
+  $('#dJunta')&&($('#dJunta').onclick=async()=>{const cj=conjSync(t);if(!cj.length)return;$('#dJunta').disabled=true;if(await saveTools(cj)){toast(cj.length+' ficha(s) juntas ao conjunto '+t.cod+'.');openTool(id)}});
+  $('#dDesag')&&($('#dDesag').onclick=async()=>{
+    if(!confirm(`Desagrupar o conjunto ${t.cod}? Cada peça volta a ser uma ferramenta independente na lista, na mesma posição (${t.pos||'sem posição'}).`))return;
+    const base={...t};delete base.pecas;addHist(base,'Conjunto desagrupado');const out=[base];
+    for(const p of pecasDe(t)){if(p.tipo==='cortante')continue;const lig=conjDaPeca(t,p.tipo);
+      if(lig)out.push(conjSolta(lig,t,t.pos));
+      else{const nova={id:safeId(t.cod+'-'+p.tipo)+'-'+uid().slice(-4),cod:t.cod+' · '+p.nome,tipo:'peca',pecaDe:t.id,pecaTipo:p.tipo,mat:t.mat||'',cli:t.cli||'',ncli:t.ncli||'',den:(p.nome+' de '+(t.den||t.cod)),est:t.est==='sucatado'?'armazem':(t.est||'armazem'),pos:t.pos||'',local:t.local||''};addHist(nova,'Separada do conjunto '+t.cod);out.push(nova)}}
+    if(await saveTools(out)){toast('Conjunto desagrupado: '+(out.length-1)+' peça(s) independentes.');openTool(id)}
   });
   $('#dParEdit')&&($('#dParEdit').onclick=()=>{const P=t.param||{};
     $('#dPar').innerHTML=`<div class="tw"><table class="t"><thead><tr><th>Máquina</th><th>Pressão</th><th>Velocidade</th><th>Nota</th></tr></thead><tbody>${machines().map(m=>`<tr><td class="code">${esc(m)}</td><td><input type="text" data-pm="${esc(m)}" data-pk="p" value="${esc(P[m]?.p||'')}" placeholder="ex.: 180 t"></td><td><input type="text" data-pm="${esc(m)}" data-pk="v" value="${esc(P[m]?.v||'')}" placeholder="ex.: 6500 f/h"></td><td><input type="text" data-pm="${esc(m)}" data-pk="n" value="${esc(P[m]?.n||'')}" placeholder="opcional"></td></tr>`).join('')}</tbody></table></div><div class="row" style="margin-top:8px"><button class="btn pri sm" id="dParSave">Guardar parâmetros</button><button class="btn sm" id="dParNo">Cancelar</button></div>`;
@@ -445,9 +484,9 @@ function accPanel(t,kind){const k=kind==='braille'?'br':'rl',it=accOf(t,kind),L=
    Sem t.pecas, a ferramenta é um conjunto de uma peça (o próprio cortante). */
 const PECA_TIPOS=[
   ['cortante','Cortante',/^(C|CF)_|^cortante/i],
-  ['descM','Descasque macho',/^(descasque\s*macho|descm|desc\s*m|descom)\b/i],
-  ['descF','Descasque fêmea',/^(descasque\s*f[eê]mea|descf|desc\s*f|descof|descasque)\b/i],
-  ['desmold','Desmoldagem',/^(desmold|desmol|desmoldagem)/i],
+  ['descM','Descasque macho',/^(descasque\s*macho|desc\s*-?\s*m|descom)(?![a-z])/i],
+  ['descF','Descasque fêmea',/^(descasque\s*f[eê]mea|desc\s*-?\s*f|descof|descasque)(?![a-z])/i],
+  ['desmold','Desmoldagem',/^desm/i],
   ['separacao','Separação',/^(sep|separa|separa[cç][aã]o)/i],
   ['pertinax','Pertinax',/^pert/i],
   ['grm','Gravura macho',/^grm/i],
@@ -459,6 +498,29 @@ const PECA_NOME=Object.fromEntries(PECA_TIPOS.map(p=>[p[0],p[1]]));
 function pecaTipo(den){const d=String(den||'').trim();for(const [id,,re] of PECA_TIPOS)if(re.test(d))return id;return 'cortante';}
 function pecasDe(t){return Array.isArray(t.pecas)&&t.pecas.length?t.pecas:[{tipo:'cortante',nome:'Cortante'}];}
 function nPecas(t){return pecasDe(t).length;}
+/* (v59) Fichas das peças ligadas ao conjunto: as linhas Pert_/Separ_/DescF_/DescM_/Desm_… do mesmo cortante
+   ficam com conjDe=id do principal e conjTipo=tipo da peça, e deixam de aparecer sozinhas (movem-se com o cortante).
+   Desmarcar a peça, "Separar" ou "Desagrupar" devolve a ficha à lista. */
+function conjMain(t){if(!t||!t.conjDe)return null;const m=S.tools.get(t.conjDe);return m&&m.est!=='sucatado'&&pecasDe(m).some(p=>p.tipo===t.conjTipo)?m:null}
+const naLista=t=>!conjMain(t);
+function conjSoltas(o){
+  const want=new Set(pecasDe(o).map(p=>p.tipo).filter(x=>x!=='cortante'));if(!want.size)return [];
+  const b=baseCod(o.cod),used=new Set(),out=[];
+  const c=[...S.tools.values()].filter(x=>x.id!==o.id&&x.est!=='sucatado'&&x.conjDe!==o.id&&!conjMain(x)&&nPecas(x)<2&&baseCod(x.cod)===b)
+    .map(x=>({x,tp:x.pecaTipo||pecaTipo(x.den)})).filter(c=>want.has(c.tp))
+    .sort((a,z)=>(z.x.pos===o.pos)-(a.x.pos===o.pos));
+  for(const k of c){if(used.has(k.tp))continue;used.add(k.tp);out.push(k)}
+  return out;
+}
+function conjDaPeca(m,tipo){for(const x of S.tools.values())if(x.conjDe===m.id&&x.conjTipo===tipo)return x;return null}
+function conjSolta(x,m,pos){const n={...x,pos:pos||'',local:m.local||x.local||'',est:m.est==='sucatado'?'armazem':(m.est||'armazem'),...(m.est==='maquina'?{maq:m.maq||''}:{})};delete n.conjDe;delete n.conjTipo;addHist(n,'Separada do conjunto '+m.cod);return n}
+/* fichas a gravar quando o conjunto o muda: liga as soltas que correspondem e solta as que deixaram de estar marcadas */
+function conjSync(o){
+  const want=new Set(pecasDe(o).map(p=>p.tipo)),out=[];
+  for(const x of S.tools.values())if(x.conjDe===o.id&&!want.has(x.conjTipo))out.push(conjSolta(x,o,o.pos));
+  for(const {x,tp} of conjSoltas(o)){const n={...x,conjDe:o.id,conjTipo:tp,posAnt:x.pos||'',pos:o.pos||'',local:o.local||'',est:o.est||'armazem'};addHist(n,'Juntou-se ao conjunto '+o.cod);out.push(n)}
+  return out;
+}
 
 function openToolForm(t,preIn){
   const {onSaved,focus,...pre}=preIn||{};
@@ -511,7 +573,7 @@ function openToolForm(t,preIn){
     {const ps=[o.pos,o.br?.pos,o.rl?.pos].filter(Boolean);if(new Set(ps).size<ps.length){toast('O cortante, o Braille e o relevo têm de ter posições diferentes.',1);return}const clash=ps.flatMap(p=>(occupied().get(p)||[]).filter(x=>!t||x.id!==t.id).map(x=>p+' ('+x.cod+')'));if(clash.length&&!$('#nfSave').dataset.force){$('#nfSave').dataset.force='1';$('#nfWarn').innerHTML=`<div class="banner" style="margin:0">Posição ocupada: ${esc(clash.join(', '))}. Carrega outra vez em guardar para confirmar mesmo assim.</div>`;return}}
     if(!t){o.id=safeId(o.cod)+(S.tools.has(safeId(o.cod))?'-'+uid().slice(-4):'');if(o._toMaq){o.est='maquina';o.maq=o._toMaqName||'';o.maqDesde=nowIso();delete o.pos;addHist(o,'Entrada direta na máquina'+(o.maq?' '+o.maq:'')+' (sem posição)')}else{o.est='armazem';addHist(o,'Entrada no armazém'+(o.pos?' em '+o.pos:''))}}else addHist(o,'Dados editados');
     if(o.pos&&!S.positions[o.pos])registerPositions({[o.pos]:{l:o.local||''}});
-    delete o._toMaq;delete o._toMaqName;if(await saveTools([o])){toast(t?'Alterações guardadas.':(o.est==='maquina'?'Ferramenta registada e enviada à máquina.':'Ferramenta registada.'));openTool(o.id);if(onSaved)onSaved(o)}
+    delete o._toMaq;delete o._toMaqName;const cj=conjSync(o);const nj=cj.filter(x=>x.conjDe).length,ns=cj.length-nj;if(await saveTools([o,...cj])){if(cj.length)toast((nj?nj+' ficha(s) de peças juntas ao conjunto (deixam de aparecer na lista)':'')+(nj&&ns?' · ':'')+(ns?ns+' ficha(s) separadas do conjunto':''));else toast(t?'Alterações guardadas.':(o.est==='maquina'?'Ferramenta registada e enviada à máquina.':'Ferramenta registada.'));openTool(o.id);if(onSaved)onSaved(o)}
   };
   $('#nfSave').onclick=()=>doSave();
   $('#nfSaveMaq')&&($('#nfSaveMaq').onclick=async()=>{const ms=machines();const m=await askMachine(ms);if(m===null)return;doSave(m)});
@@ -986,7 +1048,7 @@ function askMachine(ms){
 /* ============ Agente de pesquisa local (v37) — responde a perguntas sobre os dados, sem internet ============ */
 function agentAnswer(qraw){
   const q=norm(qraw||'').trim();if(!q)return null;
-  const tools=[...S.tools.values()].filter(t=>t.est!=='sucatado');
+  const tools=[...S.tools.values()].filter(t=>t.est!=='sucatado'&&naLista(t));
   const esc2=esc,link=t=>`<a class="agent-tool" data-agtool="${esc2(t.id)}"><b class="mono">${esc2(t.cod)}</b></a>`;
   const estTxt=t=>({armazem:'em armazém'+(t.pos?' · '+t.pos:''),maquina:'na máquina '+(t.maq||''),arrumar:'no pré-corte',reparacao:'em reparação'}[t.est]||t.est);
   // código explícito?

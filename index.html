@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="css/app.css">
 <script src="js/vendor/xlsx.full.min.js"></script>
-<script>window.PCV_VENDOR='js/vendor/';window.PCV_VERSAO='58 · 18/11/2026';</script>
+<script>window.PCV_VENDOR='js/vendor/';window.PCV_VERSAO='59 · 23/11/2026';</script>
 <script src="config.js"></script>
 <script src="js/store.js"></script>
 </head>
@@ -66,6 +66,7 @@
     <button class="mod" data-go="operador"><h3>Operador</h3><p>Verificação à saída da máquina e folhas cortadas, para a vida do cortante.</p><div class="stats" id="stO"></div></button>
   </div>
   <div class="panel stack pend" data-min="PCV" id="pendPanel" style="margin-top:18px"><div class="row"><div class="pendbig"><b id="pendN">0</b><span>por arrumar</span></div><div class="grow"><h4>Armazém intermédio</h4><p class="small muted" style="margin:2px 0 0">Cortantes que voltaram das máquinas e material recebido de compras que ainda não foi arrumado no armazém.</p></div></div><div id="pendList"></div></div>
+  <div class="panel stack" data-min="PCV" id="revPanel" hidden style="margin-top:18px"><div class="row"><h4 class="grow">Cortantes parados · manter?</h4><span class="pill p-reparacao" id="revN">0</span></div><p class="small muted" style="margin:0">Ensaios (P…) sem movimento há 3 meses no armazém; depois de mantidos, voltam a ser perguntados 1 vez por ano. Cortantes S… sem movimento há mais de 2 anos, revistos só a 1/jan, 1/abr, 1/jul e 1/out.</p><div id="revList"></div></div>
   <div class="three" style="margin-top:18px">
     <div class="panel stack"><div class="row"><h4 class="grow">Vida dos cortantes</h4><span class="pill p-nok" id="vidaN">0</span></div><div id="vidaList"></div></div>
     <div class="panel stack"><div class="row"><h4 class="grow">Reparações pendentes</h4><span class="pill p-reparacao" id="repN">0</span></div><div id="repList"></div></div>
