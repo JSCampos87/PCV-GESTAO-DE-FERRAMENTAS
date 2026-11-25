@@ -103,20 +103,42 @@ document.addEventListener('change',async e=>{if(e.target.id!=='fmgXls'||!isFamag
   try{if(!window.XLSX){st.textContent="Biblioteca XLSX não carregou.";return}const data=new Uint8Array(await f.arrayBuffer());const wb=XLSX.read(data,{type:'array',cellDates:true});
     const ws=wb.Sheets[wb.SheetNames.find(n=>/pipeline/i.test(n))||wb.SheetNames[0]];
     const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
-    const iso=v=>{if(!v)return'';const d=v instanceof Date?v:new Date(v);return isNaN(d)?String(v).slice(0,10):d.toISOString().slice(0,10)};
+    /* data local (sem passar por UTC, que no verão recuava um dia); aceita Date, nº de série do Excel ou texto dd/mm/aaaa */
+    const p2=n=>String(n).padStart(2,'0');
+    const iso=v=>{if(v===''||v==null)return'';if(v instanceof Date)return isNaN(v)?'':`${v.getFullYear()}-${p2(v.getMonth()+1)}-${p2(v.getDate())}`;
+      if(typeof v==='number'){const d=new Date(Math.round((v-25569)*864e5));return `${d.getUTCFullYear()}-${p2(d.getUTCMonth()+1)}-${p2(d.getUTCDate())}`}
+      const s=String(v).trim(),m=/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})/.exec(s);if(m)return `${m[3]}-${p2(m[2])}-${p2(m[1])}`;
+      const d=new Date(s);return isNaN(d)?s.slice(0,10):iso(d)};
     const pick=(r,...ks)=>{for(const k of ks){const kk=Object.keys(r).find(x=>norm(x)===norm(k));if(kk&&r[kk]!=='')return r[kk]}return''};
+    const est=v=>String(v||'').trim().toUpperCase();
+    /* folha "Revisão de datas e observações" (onde a FAMAG retifica datas, observações e estado): lida diretamente,
+       para não depender das fórmulas da folha Pipeline estarem recalculadas */
+    const rev=new Map();const wsR=wb.Sheets[wb.SheetNames.find(n=>/revis/i.test(n))];
+    if(wsR)for(const r of XLSX.utils.sheet_to_json(wsR,{defval:''})){const np=String(pick(r,'Nº Produção','No Produção','Nº Producao')||'').trim();if(!np)continue;
+      const ds=[pick(r,'3ª revisão'),pick(r,'2ª revisão'),pick(r,'1ª revisão'),pick(r,'Data original')].map(iso).filter(Boolean);
+      rev.set(np,{data:ds[0]||'',estado:est(pick(r,'Estado')),obs:String(pick(r,'Observações')||'').trim()})}
     const cur=fampipe();const byNp=new Map(cur.pipe.map(p=>[String(p.np),p]));
-    let upd=0,add=0;
+    let upd=0,add=0,nDatas=0,nEst=0;
     for(const r of rows){const np=String(pick(r,'Nº Produção','No Produção','Nº Producao')||'').trim();if(!np)continue;
+      const rv=rev.get(np)||{};
+      /* data prevista = "Data Atual" do Excel (já com as revisões); senão a última revisão; senão a data original */
+      const revs=[pick(r,'3ª revisão'),pick(r,'2ª revisão'),pick(r,'1ª revisão')].map(iso).filter(Boolean);
+      const dataOrig=iso(pick(r,'Data original'));
+      const dataAtual=rv.data&&rv.data!==dataOrig?rv.data:(iso(pick(r,'Data Atual','Data Prevista','Data Termo'))||revs[0]||dataOrig);
       const base={np,ref:String(pick(r,'REF GLP')||'').trim(),nome:String(pick(r,'Nome Comercial')||'').trim(),
-        artigos:String(pick(r,'Artigos na OF')||'').trim(),dataOrig:iso(pick(r,'Data original')),
+        artigos:String(pick(r,'Artigos na OF')||'').trim(),dataOrig,
         inicio:iso(pick(r,'Data Inicio')),fim:iso(pick(r,'Data Fim Produção')),
-        estado:String(pick(r,'Estado')||'').trim()};
+        estado:rv.estado||est(pick(r,'Estado'))};
+      const obsX=rv.obs||String(pick(r,'Observações')||'').trim();
       const ex=byNp.get(np);
-      if(ex){Object.assign(ex,base);upd++}  // mantém dataAtual/obs editados pela FAMAG
-      else{cur.pipe.push({...base,dataAtual:base.dataOrig,obs:''});add++}
+      if(ex){
+        if(dataAtual&&ex.dataAtual!==dataAtual){ex.dataAtual=dataAtual;nDatas++}   // o Excel da FAMAG manda na data prevista
+        if((ex.estado||'')!==base.estado)nEst++;
+        if(obsX)ex.obs=obsX;                                                      // observação do Excel substitui; vazia mantém a da página
+        Object.assign(ex,base);upd++}
+      else{cur.pipe.push({...base,dataAtual,obs:obsX});add++}
     }
-    S.fampipe=cur;await saveFampipe();st.textContent=`Atualizado: ${upd} linha(s) atualizadas, ${add} nova(s).`;renderFamNovos();
+    S.fampipe=cur;await saveFampipe();st.textContent=`Atualizado: ${upd} linha(s) (${nDatas} data(s) e ${nEst} estado(s) alterados), ${add} nova(s).`;renderFamNovos();
   }catch(err){st.textContent='Erro a ler o Excel: '+err.message}
 });
 
